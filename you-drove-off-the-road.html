@@ -3844,6 +3844,10 @@ function redraw() {
 		}
 	}
 
+	//Draw target indicator
+	//ctx.fillStyle = "#5500aa"
+	//ctx.fillRect(controllerX-5,controllerY-5,10,10);
+
 	ctx.restore();
 }
 function tick(dt) {
@@ -4106,12 +4110,13 @@ for (let i = 0; i < levels.length; ++i) {
 <script>let tasFiles = [];</script>
 <!-- load your tasfile(s) here-->
 
-
+<!--
 <script src="tasFiles/racetrack.js"></script>
 <script src="tasFiles/shortcut.js"></script>
-
 <script src="tasFiles/not_so_fast.js"></script>
+-->
 
+<script src="tasFiles/the_maze.js"></script>
 <script>
 // tas stuff
 
@@ -4135,6 +4140,11 @@ document.onkeydown = function (event) {
 	}
 	if (event.key == 'i'){
 		doFrame = Infinity;
+	}
+	if (event.key == '['){
+		frameAdvance = true;
+		doFrame = 0;
+		frameAdvanceRate = 25;
 	}
 }
 
