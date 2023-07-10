@@ -1,0 +1,4274 @@
+<!doctype html>
+<meta charset='utf-8'>
+<!--
+Published on 2023-07-09 by Ian Henderson.
+This software belongs to a future without copyright.  Please use it however you'd like.
+-->
+<!--
+Tas-tools injected by Cirion02
+-->
+<title>You drove off the road!</title>
+<meta name='viewport' content='width=800'>
+<style>
+body {
+	margin: 0;
+	padding: 0;
+	background-color: #ecb;
+	text-align: center;
+	user-select: none;
+	-webkit-user-select: none;
+	font-family: Georgia;
+}
+canvas {
+	width: 800px;
+	height: 800px;
+}
+#debug {
+	position: absolute;
+	top: 0;
+	left: 0;
+	background-color: white;
+	color: black;
+}
+#trail, #track {
+	display: none;
+}
+button {
+	background-color: #c33;
+	color: #fff;
+	touch-action: manipulation;
+	font-size: 24px;
+	font-family: 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
+	font-weight: bold;
+	border: none;
+	border-radius: 16px;
+	padding: 15px 30px;
+}
+button:disabled {
+	background-color: #a87;
+}
+.error button {
+	background-color: #023;
+	color: #eff;
+}
+.playing button, .playing #message, .buttons-only #message {
+	display: none;
+}
+main {
+	display: inline-block;
+	position: relative;
+	overflow: hidden;
+	width: 800px;
+	height: 800px;
+}
+.bottom-right {
+	position: absolute;
+	bottom: 50px;
+	right: 50px;
+}
+.bottom-left {
+	position: absolute;
+	bottom: 50px;
+	left: 50px;
+}
+#next-level-button {
+	position: absolute;
+	bottom: 50px;
+	right: 50px;
+	display: none;
+}
+#previous-level-button {
+	position: absolute;
+	bottom: 50px;
+	left: 50px;
+	display: none;
+}
+.level-select #next-level-button, .level-select #previous-level-button {
+	display: unset;
+}
+#level-buttons button {
+	position: absolute;
+	display: none;
+	font-size: 20px;
+	width: 150px;
+	height: 150px;
+	padding: 12px;
+	font-weight: normal;
+	background-color: #371604;
+	border: 3px solid #fee;
+}
+#level-buttons button.required {
+	border-style: double;
+	border-width: 9px;
+}
+#level-buttons button.required.completed {
+	border-style: solid;
+	border-width: 3px;
+}
+#level-buttons button.completed {
+	background-color: #a87 !important;
+	color: #100 !important;
+}
+#level-buttons button .time {
+	font-family: 'Georgia';
+	margin-top: 4px;
+}
+.level-select .bottom-right, .level-select .bottom-left {
+	display: none;
+}
+.level-select #message {
+	bottom: unset;
+	top: 0;
+	font-size: 36px;
+	background: none;
+	color: #433;
+}
+.level-select #level-buttons button {
+	display: unset;
+}
+.title-screen .bottom-right {
+	display: none;
+}
+.title-screen .bottom-left {
+	bottom: 100px;
+	left: 100px;
+	right: 100px;
+	min-width: -moz-available;
+}
+#message {
+	position: absolute;
+	font-size: 96px;
+	font-weight: bold;
+	color: #c33;
+	padding: 20px;
+	left: 0;
+	right: 0;
+	bottom: 380px;
+	background-color: #fff;
+	pointer-events: none;
+}
+#subtitle {
+	position: absolute;
+	font-size: 32px;
+	color: #433;
+	padding: 20px;
+	left: 0;
+	right: 0;
+	bottom: 230px;
+	pointer-events: none;
+	display: none;
+}
+.title-screen #subtitle {
+	display: unset;
+}
+.loaded #subtitle {
+	display: block;
+	bottom: unset;
+	top: 10px;
+}
+.finish #message, .loaded #message, .ending #message {
+	backdrop-filter: invert() hue-rotate(180deg);
+	-webkit-backdrop-filter: invert() hue-rotate(180deg);
+	background-color: unset;
+	color: #fff;
+}
+.error #message {
+	backdrop-filter: invert();
+	-webkit-backdrop-filter: invert();
+	color: #eff;
+	background-color: unset;
+}
+.finish #message {
+	bottom: unset;
+	top: 100px;
+}
+.loaded .bottom-right, .loaded #message, .ending .bottom-right {
+	display: none;
+}
+#ending-text {
+	position: absolute;
+	left: 10%;
+	right: 10%;
+	top: 100%;
+	font-size: 32px;
+	line-height: 1.5em;
+}
+</style>
+<main class='title-screen'>
+<canvas id='main'></canvas>
+<div id='ending-text'>
+	<p>a game by Ian Henderson (aka panic#9031) for 1d1p 47 &ldquo;sign&rdquo;</p>
+	<p>released on 9 July 2023</p>
+	<p>shoutout to the folks in witscord, in particular raz and sus for hosting 1d1p and coming up with the cool theme</p>
+	<p>congrats on finishing the game and i hope you have a good rest of your day</p>
+</div>
+<div id='level-buttons'></div>
+<button id='bottom-right-button' class='bottom-right'></button>
+<button id='bottom-left-button' class='bottom-left'>START GAME</button>
+<button id='previous-level-button'>PREVIOUS</button>
+<button id='next-level-button'>NEXT</button>
+<span id='message'>You drove off the road!</span>
+<span id='subtitle'>a puzzle racing game by panic#9031</span>
+</main>
+<canvas id='track'></canvas>
+<canvas id='trail'></canvas>
+<pre id='debug'></pre>
+<p id="tas-info"></p>
+
+<script>
+'use strict';
+const canvas = document.getElementById('main');
+const trail = document.getElementById('trail');
+const track = document.getElementById('track');
+const originalDevicePixelRatio = window.devicePixelRatio;
+const viewportWidth = 800;
+const viewportHeight = 800;
+
+const dataCanvasScale = 0.25;
+let trackData;
+
+const trailScale = originalDevicePixelRatio;
+
+let carX;
+let carY;
+let facingX;
+let facingY;
+let speed;
+let dtRemainder = 0;
+let canFinishRace;
+let gameState = 'title';
+let msUntilGameOverMessage;
+const msUntilGameOverMessageMax = 20;
+let stopMS;
+let ignoreInputMS;
+let gameOverMessage;
+let gameOverMessageClassName;
+let tickFactor;
+let raceTimer;
+let raceTimerMinutes;
+let newRecord;
+let introSlideFactor;
+const introSlideDistance = 0;
+const introSlideFactorDeceleration = 0;
+
+let endingStartMS = 0;
+let endingMS = 0;
+const endingMSMax = 750;
+
+const pointsInTrail = new Float32Array(120 * 2000);
+let numberOfPointsInTrail;
+
+let startFinishFacingX;
+let startFinishFacingY;
+
+let controllerX = 300;
+let controllerY = 300;
+let controllerPressed = false;
+
+const groups = [
+	'world 1',
+	'world 2',
+	'world 3',
+	'world 4',
+];
+let currentGroup = 0;
+
+const levels = [
+	{
+		name: 'funny ending level',
+		group: 'funny ending level',
+		ending: true,
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			150, 400,
+			250, 400,
+			-100, 400,
+		],
+		chains: [
+			[0, 2],
+			[4, 0],
+		],
+		directionIndicators: [
+			0, 0, -1, 0,
+		],
+		signs: [
+			{
+				type: 'winding',
+				winding: -1,
+				border: '#56c',
+				x: 650,
+				y: 1000,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#56c'],
+				border: '#433',
+				x: 150,
+				y: 1000,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 400,
+				y: 1400,
+				collisionRadius: 20,
+				destructable: true,
+			},
+		],
+	},
+	{
+		name: 'last stand',
+		required: true,
+		group: 'world 4',
+		overworldStyle: 'left: 635px; top: 325px; background-color: #000',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			210, 700,
+			100, 700,
+
+			300, 700,
+			500, 700,
+			700, 700,
+
+			100, 500,
+			300, 500,
+			500, 500,
+			700, 500,
+
+			100, 300,
+			300, 300,
+			500, 300,
+			700, 300,
+
+			100, 100,
+			300, 100,
+			500, 100,
+			700, 100,
+		],
+		chains: [
+			[0, 4],
+			[10, 2, 0],
+			[4, 6], [6, 4],
+			[6, 8, 16], [16, 8, 6],
+			[4, 12],
+			[12, 10], [10, 12],
+			[6, 14],
+			[12, 14], [14, 12],
+			[16, 14],
+			[16, 24], [24, 16],
+			[24, 22],
+			[22, 14], [14, 22],
+			[20, 22], [22, 20],
+			[20, 18], [18, 20],
+			[20, 12], [12, 20],
+			[10, 18], [18, 10],
+			[28, 26, 18], [18, 26, 28],
+			[30, 28], [28, 30],
+			[24, 32, 30],
+			[22, 30], [30, 22],
+			[28, 20], [20, 28],
+		],
+		directionIndicators: [
+			0, 0, 0.6, 0,
+			6, 0, 0.5, 40,
+			9, 0, 0.5, 40,
+			12, 0, 0.5, 40,
+			15, 0, 0.5, 40,
+			30, 1, 0.5, 40,
+		],
+		signs: [
+			{
+				type: 'winding',
+				winding: -1,
+				border: '#56c',
+				x: 400,
+				y: 610,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: 1,
+				border: '#56c',
+				x: 400,
+				y: 210,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: 0,
+				border: '#56c',
+				x: 400,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#56c', '#56c'],
+				border: '#433',
+				x: 400,
+				y: 780,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#fb0',
+				x: 670,
+				y: 670,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#fb0',
+				x: 470,
+				y: 470,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#c33',
+				x: 330,
+				y: 330,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#c33',
+				x: 130,
+				y: 130,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'match',
+				matches: ['#c33'],
+				border: '#433',
+				x: 600,
+				y: 610,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#fb0'],
+				border: '#433',
+				x: 200,
+				y: 210,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#56c'],
+				border: '#56c',
+				x: 600,
+				y: 210,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#56c'],
+				border: '#56c',
+				x: 600,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#56c'],
+				border: '#56c',
+				x: 200,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 200,
+				y: 500,
+				collisionRadius: 20,
+				destructable: true,
+			},
+		],
+	},
+	{
+		name: 'wtf it\'s them it\'s the ones in the photo',
+		group: 'world 4',
+		overworldStyle: 'left: 250px; top: 520px; background-color: #423;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			280, 600,
+			400, 600,
+			600, 600,
+			600, 400,
+			400, 400,
+			200, 400,
+			200, 600,
+
+			600, 200,
+			400, 200,
+			200, 200,
+		],
+		chains: [
+			[0, 2],
+			[2, 8], [8, 2],
+			[2, 4, 6], [6, 4, 2],
+			[6, 8], [8, 6],
+			[6, 14, 16], [16, 14, 6],
+			[16, 8], [8, 16],
+			[16, 18, 10], [10, 18, 16],
+			[8, 10], [10, 8],
+			[10, 12, 0],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'winding',
+				winding: 1,
+				border: '#56c',
+				x: 500,
+				y: 310,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#c33', '#c33'],
+				border: '#433',
+				x: 400,
+				y: 510,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#c33',
+				x: 380,
+				y: 300,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#c33',
+				x: 420,
+				y: 300,
+				collisionRadius: 20,
+				destructable: true,
+			},
+		],
+	},
+	{
+		name: 'only 1% can solve this',
+		group: 'world 4',
+		overworldStyle: 'left: 450px; top: 550px; background-color: #312;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			280, 600,
+			400, 600,
+			600, 600,
+			600, 400,
+			400, 400,
+			200, 400,
+			200, 600,
+
+			600, 200,
+			400, 200,
+			200, 200,
+		],
+		chains: [
+			[0, 2],
+			[2, 8], [8, 2],
+			[2, 4, 6], [6, 4, 2],
+			[6, 8], [8, 6],
+			[6, 14, 16], [16, 14, 6],
+			[16, 8], [8, 16],
+			[16, 18, 10], [10, 18, 16],
+			[8, 10], [10, 8],
+			[10, 12, 0],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'winding',
+				winding: 0,
+				border: '#c33',
+				x: 300,
+				y: 310,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: 1,
+				border: '#c33',
+				x: 500,
+				y: 510,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#56c',
+				x: 300,
+				y: 510,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#c33', '#56c'],
+				border: '#433',
+				x: 500,
+				y: 310,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#433'],
+				border: '#c33',
+				x: 210,
+				y: 205,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'match',
+				matches: ['#433'],
+				border: '#c33',
+				x: 590,
+				y: 595,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'match',
+				matches: ['#c33'],
+				border: '#c33',
+				x: 700,
+				y: 400,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'labyrinth',
+		required: true,
+		group: 'world 4',
+		overworldStyle: 'left: 140px; top: 325px; background-color: #555',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			210, 700,
+			100, 700,
+
+			300, 700,
+			500, 700,
+			700, 700,
+
+			100, 500,
+			300, 500,
+			500, 500,
+			700, 500,
+
+			100, 300,
+			300, 300,
+			500, 300,
+			700, 300,
+
+			100, 100,
+			300, 100,
+			500, 100,
+			700, 100,
+		],
+		chains: [
+			[0, 4],
+			[10, 2, 0],
+			[4, 6], [6, 4],
+			[16, 8, 6],
+			[4, 12],
+			[10, 12],
+			[14, 6],
+			[12, 14], [14, 12],
+			[14, 16], [16, 14],
+			[16, 24],
+			[22, 24],
+			[22, 14], [14, 22],
+			[22, 20],
+			[18, 20],
+			[20, 12],
+			[18, 10],
+			[28, 26, 18],
+			[28, 30],
+			[30, 32],
+			[24, 32],
+			[22, 30],
+			[20, 28],
+		],
+		directionIndicators: [
+			0, 0, 0.6, 0,
+			1, 0, 0.5, 40,
+			4, 0, 0.5, 40,
+			4, 1, 0.5, 40,
+			5, 0, 0.5, 40,
+			6, 0, 0.5, 40,
+			7, 0, 0.5, 40,
+			12, 0, 0.5, 40,
+			13, 0, 0.5, 40,
+			16, 0, 0.5, 40,
+			17, 0, 0.5, 40,
+			18, 0, 0.5, 40,
+			19, 0, 0.5, 40,
+			20, 0, 0.5, 40,
+			20, 1, 0.5, 40,
+			21, 0, 0.5, 40,
+			22, 0, 0.5, 40,
+			23, 0, 0.5, 40,
+			24, 0, 0.5, 40,
+			25, 0, 0.5, 40,
+		],
+		signs: [
+			{
+				type: 'target',
+				border: '#c33',
+				x: 400,
+				y: 470,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 440,
+				y: 530,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 690,
+				y: 490,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 210,
+				y: 490,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 400,
+				y: 700,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 190,
+				y: 290,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 530,
+				y: 270,
+				collisionRadius: 20,
+				destructable: true,
+			},
+		],
+	},
+	{
+		name: 'snake',
+		required: true,
+		group: 'world 4',
+		overworldStyle: 'left: 470px; top: 325px; background-color: #222',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			210, 700,
+			100, 700,
+
+			300, 700,
+			500, 700,
+			700, 700,
+
+			100, 500,
+			300, 500,
+			500, 500,
+			700, 500,
+
+			100, 300,
+			300, 300,
+			500, 300,
+			700, 300,
+
+			100, 100,
+			300, 100,
+			500, 100,
+			700, 100,
+		],
+		chains: [
+			[0, 4],
+			[10, 2, 0],
+			[4, 6], [6, 4],
+			[6, 8, 16], [16, 8, 6],
+			[12, 4], [4, 12],
+			[12, 10], [10, 12],
+			[6, 14], [14, 6],
+			[12, 14], [14, 12],
+			[14, 16], [16, 14],
+			[16, 24], [24, 16],
+			[24, 22], [22, 24],
+			[22, 14], [14, 22],
+			[20, 22], [22, 20],
+			[20, 18], [18, 20],
+			[20, 12], [12, 20],
+			[10, 18], [18, 10],
+			[28, 26, 18], [18, 26, 28],
+			[30, 28], [28, 30],
+			[30, 32, 24], [24, 32, 30],
+			[22, 30], [30, 22],
+			[28, 20], [20, 28],
+		],
+		directionIndicators: [
+			0, 0, 0.6, 0,
+		],
+		signs: [
+			{
+				type: 'winding',
+				winding: -1,
+				border: '#56c',
+				x: 200,
+				y: 210,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: 1,
+				border: '#56c',
+				x: 400,
+				y: 210,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: -1,
+				border: '#56c',
+				x: 600,
+				y: 210,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: 1,
+				border: '#56c',
+				x: 200,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: -1,
+				border: '#56c',
+				x: 400,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: 1,
+				border: '#56c',
+				x: 600,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: -1,
+				border: '#56c',
+				x: 200,
+				y: 610,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: 1,
+				border: '#56c',
+				x: 400,
+				y: 610,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: -1,
+				border: '#56c',
+				x: 600,
+				y: 610,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'permutation',
+		required: true,
+		group: 'world 4',
+		overworldStyle: 'left: 305px; top: 325px; background-color: #333',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			210, 700,
+			100, 700,
+
+			300, 700,
+			500, 700,
+			700, 700,
+
+			100, 500,
+			300, 500,
+			500, 500,
+			700, 500,
+
+			100, 300,
+			300, 300,
+			500, 300,
+			700, 300,
+
+			100, 100,
+			300, 100,
+			500, 100,
+			700, 100,
+		],
+		chains: [
+			[0, 4],
+			[10, 2, 0],
+			[4, 6], [6, 4],
+			[6, 8, 16], [16, 8, 6],
+			[12, 4], [4, 12],
+			[12, 10], [10, 12],
+			[6, 14], [14, 6],
+			[12, 14], [14, 12],
+			[14, 16], [16, 14],
+			[16, 24], [24, 16],
+			[24, 22], [22, 24],
+			[22, 14], [14, 22],
+			[20, 22], [22, 20],
+			[20, 18], [18, 20],
+			[20, 12], [12, 20],
+			[10, 18], [18, 10],
+			[28, 26, 18], [18, 26, 28],
+			[30, 28], [28, 30],
+			[30, 32, 24], [24, 32, 30],
+			[22, 30], [30, 22],
+			[28, 20], [20, 28],
+		],
+		directionIndicators: [
+			0, 0, 0.6, 0,
+		],
+		signs: [
+			{
+				type: 'match',
+				matches: ['#c33', '#c33'],
+				border: '#433',
+				x: 200,
+				y: 210,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#433'],
+				border: '#56c',
+				x: 400,
+				y: 210,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#433'],
+				border: '#fb0',
+				x: 600,
+				y: 210,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#433'],
+				border: '#56c',
+				x: 200,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#fb0', '#fb0'],
+				border: '#433',
+				x: 400,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#433'],
+				border: '#c33',
+				x: 600,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#433'],
+				border: '#fb0',
+				x: 200,
+				y: 610,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#433'],
+				border: '#c33',
+				x: 400,
+				y: 610,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#56c', '#56c'],
+				border: '#433',
+				x: 600,
+				y: 610,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'the herby derby',
+		group: 'world 1',
+		overworldStyle: 'left: 580px; top: 490px; background-color: #411;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			200, 500,
+
+			700, 500,
+
+			700, 300,
+			100, 300,
+			100, 500,
+		],
+		chains: [
+			[0, 2, 4, 6, 8, 0],
+		],
+		directionIndicators: [
+			0, 0, 0.4, 40,
+			0, 1, 0.5, 40,
+			0, 2, 0.5, 40,
+			0, 3, 0.5, 40,
+		],
+		signs: [
+			{
+				type: 'target',
+				border: '#c33',
+				x: 400,
+				y: 500,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 200,
+				y: 330,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 300,
+				y: 270,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 400,
+				y: 330,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 500,
+				y: 270,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 600,
+				y: 330,
+				collisionRadius: 20,
+				destructable: true,
+			},
+		],
+	},
+	{
+		name: 'two birds',
+		group: 'world 1',
+		overworldStyle: 'left: 550px; top: 370px; background-color: #611;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			280, 500,
+			400, 500,
+			600, 500,
+			600, 300,
+			400, 300,
+			200, 300,
+			200, 500,
+		],
+		chains: [
+			[0, 2],
+			[2, 8], [8, 2],
+			[2, 4, 6, 8],
+			[8, 10, 12, 0],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+			3, 0, 0.5, 40,
+			3, 1, 0.5, 40,
+			3, 2, 0.5, 40,
+			4, 0, 0.5, 40,
+			4, 1, 0.5, 40,
+		],
+		signs: [
+			{
+				type: 'target',
+				border: '#c33',
+				x: 600,
+				y: 400,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 400,
+				y: 400,
+				collisionRadius: 20,
+				destructable: true,
+			},
+		],
+	},
+	{
+		name: 'the maze',
+		group: 'world 1',
+		overworldStyle: 'left: 180px; top: 390px; background-color: #623',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			230, 700,
+			100, 700,
+
+			300, 700,
+			500, 700,
+			700, 700,
+
+			100, 500,
+			300, 500,
+			500, 500,
+			700, 500,
+
+			100, 300,
+			300, 300,
+			500, 300,
+			700, 300,
+
+			100, 100,
+			300, 100,
+			500, 100,
+			700, 100,
+		],
+		chains: [
+			[0, 4],
+			[10, 2, 0],
+			[4, 6],
+			[8, 6],
+			[12, 4],
+			[12, 10],
+			[6, 14],
+			[12, 14],
+			[16, 8],
+			[14, 16],
+			[16, 24],
+			[24, 22],
+			[22, 14],
+			[20, 22],
+			[20, 18],
+			[20, 12],
+			[10, 18],
+			[26, 18],
+			[28, 26],
+			[30, 28],
+			[30, 32],
+			[32, 24],
+			[22, 30],
+			[28, 20],
+		],
+		directionIndicators: [
+			1, 0, 0.5, 40,
+			2, 0, 0.5, 40,
+			3, 0, 0.5, 40,
+			4, 0, 0.5, 40,
+			5, 0, 0.5, 40,
+			6, 0, 0.5, 40,
+			7, 0, 0.5, 40,
+			8, 0, 0.5, 40,
+			9, 0, 0.5, 40,
+			10, 0, 0.5, 40,
+			11, 0, 0.5, 40,
+			12, 0, 0.5, 40,
+			13, 0, 0.5, 40,
+			14, 0, 0.5, 40,
+			15, 0, 0.5, 40,
+			16, 0, 0.5, 40,
+			17, 0, 0.5, 40,
+			18, 0, 0.5, 40,
+			19, 0, 0.5, 40,
+			20, 0, 0.5, 40,
+			21, 0, 0.5, 40,
+			22, 0, 0.5, 40,
+			23, 0, 0.5, 40,
+		],
+		signs: [],
+	},
+	{
+		name: 'not so fast',
+		group: 'world 1',
+		overworldStyle: 'left: 390px; top: 250px; background-color: #512;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			300, 600,
+			500, 600,
+			680, 450,
+			700, 210,
+			500, 150,
+			400, 400,
+			200, 400,
+			120, 600,
+		],
+		chains: [
+			[0, 2],
+			[2, 4],
+			[4, 6, 8, 10],
+			[10, 12, 14, 0],
+			[4, 10],
+			[10, 2],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 40,
+			1, 0, 0.5, 40,
+			2, 0, 0.5, 40,
+			2, 1, 0.5, 40,
+			2, 2, 0.5, 40,
+			3, 0, 0.5, 40,
+			3, 1, 0.5, 40,
+			3, 2, 0.5, 0,
+			4, 0, 0.5, 40,
+			5, 0, 0.5, 40,
+		],
+		signs: [
+			{
+				type: 'target',
+				border: '#c33',
+				x: 500,
+				y: 150,
+				collisionRadius: 20,
+				destructable: true,
+			},
+		],
+	},
+	{
+		name: 'shortcut',
+		group: 'world 1',
+		overworldStyle: 'left: 150px; top: 270px; background-color: #534;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			300, 600,
+			500, 600,
+			680, 450,
+			700, 210,
+			500, 150,
+			400, 400,
+			200, 400,
+			120, 600,
+		],
+		chains: [
+			[0, 2],
+			[2, 4],
+			[4, 6, 8, 10],
+			[10, 12, 14, 0],
+			[4, 10],
+			[10, 2],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 40,
+			1, 0, 0.5, 40,
+			2, 0, 0.5, 40,
+			2, 1, 0.5, 40,
+			2, 2, 0.5, 40,
+			3, 0, 0.5, 40,
+			3, 1, 0.5, 40,
+			3, 2, 0.5, 0,
+			4, 0, 0.5, 40,
+			5, 0, 0.5, 40,
+		],
+		signs: [],
+	},
+	{
+		name: 'racetrack',
+		group: 'world 1',
+		overworldStyle: 'left: 100px; top: 150px; background-color: #214;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			300, 600,
+			500, 600,
+			680, 450,
+			700, 210,
+			500, 150,
+			400, 400,
+			200, 400,
+			120, 600,
+		],
+		chains: [
+			[0, 2, 4, 6, 8, 10, 12, 14, 0],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 40,
+			0, 1, 0.5, 40,
+			0, 2, 0.5, 40,
+			0, 3, 0.5, 40,
+			0, 4, 0.5, 40,
+			0, 5, 0.5, 40,
+			0, 6, 0.5, 40,
+			0, 7, 0.5, 0,
+		],
+		signs: [],
+	},
+	{
+		name: 'the tower',
+		group: 'world 3',
+		overworldStyle: 'left: 410px; top: 130px; background-color: #521',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			200, 675,
+			150, 675,
+
+			300, 675,
+			500, 675,
+			650, 675,
+
+			150, 475,
+			300, 475,
+			500, 475,
+			650, 475,
+
+			150, 275,
+			300, 275,
+			500, 275,
+			650, 275,
+
+			150, 125,
+			300, 125,
+			500, 125,
+			650, 125,
+		],
+		chains: [
+			[0, 4],
+			[10, 2, 0],
+			[6, 4], [4, 6],
+			[6, 8, 16, 24, 32, 30, 28, 26, 18, 10],
+			[12, 4],
+			[6, 14],
+			[12, 14], [14, 12],
+			[22, 14], [14, 22],
+			[20, 22], [22, 20],
+			[20, 12], [12, 20],
+		],
+		directionIndicators: [
+			0, 0, 0.6, 0,
+			5, 0, 0.5, 40,
+			6, 0, 0.5, 40,
+		],
+		signs: [
+			{
+				type: 'winding',
+				winding: 0,
+				border: '#56c',
+				x: 400,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: -2,
+				border: '#56c',
+				x: 400,
+				y: 610,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'the tree',
+		group: 'world 3',
+		overworldStyle: 'left: 280px; top: 150px; background-color: #521',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			200, 675,
+			150, 675,
+
+			400, 675,
+			500, 675,
+			650, 675,
+
+			150, 475,
+			300, 475,
+			400, 475,
+			500, 475,
+			650, 475,
+
+			150, 275,
+			300, 275,
+			500, 275,
+			650, 275,
+
+			150, 125,
+			300, 125,
+			500, 125,
+			650, 125,
+		],
+		chains: [
+			[0, 4],
+			[10, 2, 0],
+			[6, 4], [4, 6],
+			[6, 8, 18, 26, 34, 32, 30, 28, 20, 10],
+			[14, 4], [4, 14],
+			[12, 14], [14, 12],
+			[16, 14], [14, 16],
+			[24, 16], [16, 24],
+			[22, 24], [24, 22],
+			[22, 12], [12, 22],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 40,
+		],
+		signs: [
+			{
+				type: 'winding',
+				winding: 0,
+				border: '#56c',
+				x: 400,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'combination lock',
+		group: 'world 2',
+		overworldStyle: 'left: 600px; top: 150px; background-color: #211;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			400, 600,
+			600, 600,
+			600, 200,
+			200, 200,
+			200, 600,
+		],
+		chains: [
+			[0, 2, 4, 6, 8, 0],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+			0, 1, 0.5, 40,
+			0, 2, 0.5, 40,
+			0, 3, 0.5, 40,
+			0, 4, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'match',
+				matches: ['#c33', '#433'],
+				border: '#433',
+				x: 400,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#433', '#433'],
+				border: '#c33',
+				x: 570,
+				y: 570,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'match',
+				matches: ['#433'],
+				border: '#c33',
+				x: 570,
+				y: 230,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'match',
+				matches: ['#c33'],
+				border: '#433',
+				x: 230,
+				y: 230,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'match',
+				matches: ['#c33', '#c33'],
+				border: '#433',
+				x: 230,
+				y: 570,
+				collisionRadius: 20,
+				destructable: true,
+			},
+		],
+	},
+	{
+		name: 'whole lotta nothin\'',
+		group: 'world 3',
+		overworldStyle: 'left: 350px; top: 600px; background-color: #421;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			280, 600,
+			400, 600,
+			600, 600,
+			600, 400,
+			400, 400,
+			200, 400,
+			200, 600,
+
+			600, 200,
+			400, 200,
+			200, 200,
+		],
+		chains: [
+			[0, 2],
+			[2, 8], [8, 2],
+			[2, 4, 6], [6, 4, 2],
+			[6, 8], [8, 6],
+			[6, 14, 16], [16, 14, 6],
+			[16, 8], [8, 16],
+			[16, 18, 10], [10, 18, 16],
+			[8, 10], [10, 8],
+			[10, 12, 0],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'winding',
+				winding: 0,
+				border: '#56c',
+				x: 300,
+				y: 310,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: 0,
+				border: '#56c',
+				x: 500,
+				y: 310,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: 0,
+				border: '#56c',
+				x: 500,
+				y: 510,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: 0,
+				border: '#56c',
+				x: 700,
+				y: 400,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#56c'],
+				border: '#443',
+				x: 100,
+				y: 400,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'taking sides',
+		group: 'world 3',
+		overworldStyle: 'left: 600px; top: 520px; background-color: #422;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			100, 475,
+			225, 475,
+			400, 475,
+			575, 475,
+			575, 300,
+			400, 300,
+			225, 300,
+			50, 300,
+			50, 475,
+
+			750, 300,
+			750, 475,
+		],
+		chains: [
+			[0, 2],
+
+			[2, 4], [4, 2],
+			[4, 6], [6, 4],
+			[6, 8], [8, 6],
+			[8, 10], [10, 8],
+			[10, 12], [12, 10],
+
+			[12, 14, 16, 0],
+
+			[2, 12], [12, 2],
+			[4, 10], [10, 4],
+
+			[8, 18, 20, 6], [6, 20, 18, 8],
+		],
+		directionIndicators: [
+			0, 0, 0.6, 0,
+		],
+		signs: [
+			{
+				type: 'match',
+				matches: ['#56c'],
+				border: '#433',
+				x: 137,
+				y: 400,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: -1,
+				border: '#56c',
+				x: 312,
+				y: 400,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#433'],
+				border: '#56c',
+				x: 487,
+				y: 400,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'too close for comfort',
+		group: 'world 3',
+		overworldStyle: 'left: 555px; top: 400px; background-color: #421;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			100, 475,
+			225, 475,
+			400, 475,
+			575, 475,
+			575, 300,
+			400, 300,
+			225, 300,
+			50, 300,
+			50, 475,
+
+			750, 300,
+			750, 475,
+		],
+		chains: [
+			[0, 2],
+
+			[2, 4], [4, 2],
+			[4, 6], [6, 4],
+			[6, 8], [8, 6],
+			[8, 10], [10, 8],
+			[10, 12], [12, 10],
+
+			[12, 14, 16, 0],
+
+			[2, 12], [12, 2],
+			[4, 10], [10, 4],
+
+			[8, 18, 20, 6], [6, 20, 18, 8],
+		],
+		directionIndicators: [
+			0, 0, 0.6, 0,
+		],
+		signs: [
+			{
+				type: 'match',
+				matches: ['#56c'],
+				border: '#433',
+				x: 137,
+				y: 400,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: -1,
+				border: '#56c',
+				x: 312,
+				y: 400,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: -1,
+				border: '#56c',
+				x: 487,
+				y: 400,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'stay over there',
+		group: 'world 3',
+		overworldStyle: 'left: 420px; top: 430px; background-color: #532;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			100, 475,
+			225, 475,
+			400, 475,
+			575, 475,
+			575, 300,
+			400, 300,
+			225, 300,
+			50, 300,
+			50, 475,
+
+			750, 300,
+			750, 475,
+		],
+		chains: [
+			[0, 2],
+
+			[2, 4], [4, 2],
+			[4, 6], [6, 4],
+			[6, 8], [8, 6],
+			[8, 10], [10, 8],
+			[10, 12], [12, 10],
+
+			[12, 14, 16, 0],
+
+			[2, 12], [12, 2],
+			[4, 10], [10, 4],
+
+			[8, 18, 20, 6], [6, 20, 18, 8],
+		],
+		directionIndicators: [
+			0, 0, 0.6, 0,
+		],
+		signs: [
+			{
+				type: 'match',
+				matches: ['#56c'],
+				border: '#433',
+				x: 137,
+				y: 400,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: -1,
+				border: '#56c',
+				x: 312,
+				y: 400,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: -1,
+				border: '#56c',
+				x: 662,
+				y: 400,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'the third eye',
+		group: 'world 2',
+		overworldStyle: 'left: 600px; top: 420px; background-color: #312;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			280, 500,
+			400, 500,
+			600, 500,
+			600, 300,
+			400, 300,
+			200, 300,
+			200, 500,
+		],
+		chains: [
+			[0, 2],
+			[2, 8], [8, 2],
+			[2, 4, 6, 8], [8, 6, 4, 2],
+			[8, 10, 12, 0],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'match',
+				matches: ['#c33'],
+				border: '#433',
+				x: 305,
+				y: 440,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#c33',
+				x: 495,
+				y: 440,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#56c'],
+				border: '#c33',
+				x: 210,
+				y: 310,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#56c',
+				x: 590,
+				y: 310,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#56c',
+				x: 400,
+				y: 580,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 400,
+				y: 400,
+				collisionRadius: 20,
+				destructable: true,
+			},
+		],
+	},
+	{
+		name: 'space animal',
+		group: 'world 2',
+		overworldStyle: 'left: 500px; top: 315px; background-color: #501;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			280, 500,
+			400, 500,
+			600, 500,
+			600, 300,
+			400, 300,
+			200, 300,
+			200, 500,
+		],
+		chains: [
+			[0, 2, 4, 6, 8, 10, 12, 0],
+		],
+		directionIndicators: [
+			0, 0, 1, 40,
+			0, 3, 1, 40,
+		],
+		signs: [
+			{
+				type: 'match',
+				matches: ['#c33'],
+				border: '#433',
+				x: 305,
+				y: 440,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#c33',
+				x: 495,
+				y: 440,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#56c'],
+				border: '#c33',
+				x: 210,
+				y: 310,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#56c',
+				x: 590,
+				y: 310,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#56c',
+				x: 400,
+				y: 580,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'watching the watchers',
+		group: 'world 2',
+		overworldStyle: 'left: 330px; top: 200px; background-color: #400;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			280, 500,
+			400, 500,
+			600, 500,
+			600, 300,
+			400, 300,
+			200, 300,
+			200, 500,
+		],
+		chains: [
+			[0, 2],
+			[2, 8], [8, 2],
+			[2, 4, 6, 8], [8, 6, 4, 2],
+			[8, 10, 12, 0],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'match',
+				matches: ['#c33'],
+				border: '#433',
+				x: 300,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#56c',
+				x: 500,
+				y: 480,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'match',
+				matches: ['#56c'],
+				border: '#c33',
+				x: 500,
+				y: 300,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'feeling jealous',
+		group: 'world 2',
+		overworldStyle: 'left: 95px; top: 100px; background-color: #110;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			280, 500,
+			400, 500,
+			600, 500,
+			600, 300,
+			400, 300,
+			200, 300,
+			200, 500,
+		],
+		chains: [
+			[0, 2],
+			[2, 8], [8, 2],
+			[2, 4, 6, 8], [8, 6, 4, 2],
+			[8, 10, 12, 0],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'match',
+				matches: ['#c33'],
+				border: '#433',
+				x: 300,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#c33',
+				x: 450,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#433'],
+				border: '#c33',
+				x: 600,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'singled out',
+		group: 'world 2',
+		overworldStyle: 'left: 145px; top: 230px; background-color: #300;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			280, 500,
+			400, 500,
+			600, 500,
+			600, 300,
+			400, 300,
+			200, 300,
+			200, 500,
+		],
+		chains: [
+			[0, 2],
+			[2, 8], [8, 2],
+			[2, 4, 6, 8], [8, 6, 4, 2],
+			[8, 10, 12, 0],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'match',
+				matches: ['#c33'],
+				border: '#433',
+				x: 300,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#c33',
+				x: 450,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#c33',
+				x: 600,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'seeing double',
+		group: 'world 2',
+		overworldStyle: 'left: 120px; top: 360px; background-color: #310;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			280, 500,
+			400, 500,
+			600, 500,
+			600, 300,
+			400, 300,
+			200, 300,
+			200, 500,
+		],
+		chains: [
+			[0, 2],
+			[2, 8], [8, 2],
+			[2, 4, 6, 8], [8, 6, 4, 2],
+			[8, 10, 12, 0],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'match',
+				matches: ['#c33', '#c33'],
+				border: '#433',
+				x: 300,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#c33',
+				x: 450,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#c33',
+				x: 600,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'seeing red',
+		group: 'world 2',
+		overworldStyle: 'left: 100px; top: 490px; background-color: #521;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			280, 500,
+			400, 500,
+			600, 500,
+			600, 300,
+			400, 300,
+			200, 300,
+			200, 500,
+		],
+		chains: [
+			[0, 2],
+			[2, 8], [8, 2],
+			[2, 4, 6, 8], [8, 6, 4, 2],
+			[8, 10, 12, 0],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'match',
+				matches: ['#c33'],
+				border: '#433',
+				x: 300,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#c33',
+				x: 500,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'nose bridge',
+		group: 'world 2',
+		overworldStyle: 'left: 340px; top: 420px; background-color: #410;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			180, 500,
+			300, 500,
+			700, 500,
+			700, 300,
+			300, 300,
+			100, 300,
+			100, 500,
+
+			300, 400,
+
+			500, 400,
+			500, 300,
+			500, 500,
+		],
+		chains: [
+			[0, 2, 14],
+			[16, 20, 4, 6, 18, 16], [16, 18, 6, 4, 20, 16],
+			[14, 8, 10, 12, 0],
+			[14, 16], [16, 14],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'match',
+				matches: ['#c33'],
+				border: '#433',
+				x: 200,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: ['#c33'],
+				border: '#433',
+				x: 415,
+				y: 510,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#c33',
+				x: 600,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#c33',
+				x: 385,
+				y: 395,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'rose-tinted',
+		group: 'world 2',
+		overworldStyle: 'left: 300px; top: 550px; background-color: #511;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			180, 500,
+			300, 500,
+			700, 500,
+			700, 300,
+			300, 300,
+			100, 300,
+			100, 500,
+
+			300, 400,
+
+			500, 400,
+			500, 300,
+			500, 500,
+		],
+		chains: [
+			[0, 2, 14],
+			[16, 20, 4, 6, 18, 16], [16, 18, 6, 4, 20, 16],
+			[14, 8, 10, 12, 0],
+			[14, 16], [16, 14],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'match',
+				matches: ['#c33'],
+				border: '#433',
+				x: 200,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#c33',
+				x: 600,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'hey you made it here',
+		group: 'world 4',
+		overworldStyle: 'left: 200px; top: 120px; background-color: #532;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			250, 400,
+			400, 400,
+			600, 400,
+			700, 400,
+			700, 200,
+			600, 200,
+			400, 200,
+			200, 200,
+			200, 400,
+
+			200, 600,
+			400, 600,
+		],
+		chains: [
+			[0, 2],
+
+			[2, 4], [4, 2],
+			// [4, 6], [6, 4],
+			// [6, 8], [8, 6],
+			[4, 10], [10, 4],
+			[10, 12], [12, 10],
+
+			[12, 14], [14, 12],
+			[14, 16], [16, 14],
+
+			[16, 0],
+			[0, 16],
+			[2, 12],
+			[12, 2],
+			[4, 10],
+			[10, 4],
+
+			[16, 18, 20, 2], [2, 20, 18, 16],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'match',
+				matches: ['#56c'],
+				border: '#433',
+				x: 300,
+				y: 310,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: -1,
+				border: '#56c',
+				x: 500,
+				y: 310,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 300,
+				y: 600,
+				collisionRadius: 20,
+				destructable: true,
+			},
+		],
+	},
+	{
+		name: 'stay with me',
+		group: 'world 3',
+		overworldStyle: 'left: 160px; top: 520px; background-color: #533;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			150, 500,
+			300, 500,
+			500, 500,
+			700, 500,
+			700, 300,
+			500, 300,
+			300, 300,
+			100, 300,
+			100, 500,
+		],
+		chains: [
+			[0, 2],
+
+			[2, 4], [4, 2],
+			[4, 6], [6, 4],
+			[6, 8], [8, 6],
+			[8, 10], [10, 8],
+			[10, 12], [12, 10],
+
+			[12, 14],
+			[14, 16],
+
+			[16, 0],
+			[0, 16],
+			[2, 12],
+			[12, 2],
+			[4, 10],
+			[10, 4],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'match',
+				matches: ['#56c'],
+				border: '#433',
+				x: 200,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: 0,
+				border: '#56c',
+				x: 400,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#56c',
+				x: 600,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'let me in',
+		group: 'world 3',
+		overworldStyle: 'left: 20px; top: 450px; background-color: #654;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			150, 500,
+			300, 500,
+			500, 500,
+			700, 500,
+			700, 300,
+			500, 300,
+			300, 300,
+			100, 300,
+			100, 500,
+		],
+		chains: [
+			[0, 2],
+
+			[2, 4], [4, 2],
+			[4, 6], [6, 4],
+			[6, 8], [8, 6],
+			[8, 10], [10, 8],
+			[10, 12], [12, 10],
+
+			[12, 14],
+			[14, 16],
+
+			[16, 0],
+			[0, 16],
+			[2, 12],
+			[12, 2],
+			[4, 10],
+			[10, 4],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'winding',
+				winding: 0,
+				border: '#56c',
+				x: 400,
+				y: 420,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: -1,
+				border: '#56c',
+				x: 600,
+				y: 420,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 400,
+				y: 500,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'target',
+				border: '#c33',
+				x: 400,
+				y: 300,
+				collisionRadius: 20,
+				destructable: true,
+			},
+		],
+	},
+	{
+		name: 'leave me out',
+		group: 'world 3',
+		overworldStyle: 'left: 150px; top: 390px; background-color: #532;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			150, 500,
+			300, 500,
+			500, 500,
+			700, 500,
+			700, 300,
+			500, 300,
+			300, 300,
+			100, 300,
+			100, 500,
+		],
+		chains: [
+			[0, 2],
+
+			[2, 4], [4, 2],
+			[4, 6], [6, 4],
+			[6, 8], [8, 6],
+			[8, 10], [10, 8],
+			[10, 12], [12, 10],
+
+			[12, 14],
+			[14, 16],
+
+			[16, 0],
+			[0, 16],
+			[2, 12],
+			[12, 2],
+			[4, 10],
+			[10, 4],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'winding',
+				winding: 0,
+				border: '#56c',
+				x: 400,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: -1,
+				border: '#56c',
+				x: 600,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'rewind',
+		group: 'world 3',
+		overworldStyle: 'left: 115px; top: 210px; background-color: #421;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			280, 500,
+			400, 500,
+			600, 500,
+			600, 300,
+			400, 300,
+			200, 300,
+			200, 500,
+		],
+		chains: [
+			[0, 2],
+			[2, 8], [8, 2],
+			[2, 4, 6, 8], [8, 6, 4, 2],
+			[8, 10, 12, 0],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'winding',
+				winding: -2,
+				border: '#56c',
+				x: 500,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'eternity',
+		group: 'world 3',
+		overworldStyle: 'left: 80px; top: 90px; background-color: #322;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			280, 500,
+			400, 500,
+			600, 500,
+			600, 300,
+			400, 300,
+			200, 300,
+			200, 500,
+		],
+		chains: [
+			[0, 2],
+			[2, 8], [8, 2],
+			[2, 4, 6, 8], [8, 6, 4, 2],
+			[8, 10, 12, 0],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'winding',
+				winding: 1,
+				border: '#56c',
+				x: 500,
+				y: 410,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'staring contest',
+		group: 'world 3',
+		overworldStyle: 'left: 580px; top: 170px;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			500, 640,
+
+			400, 700,
+			650, 550,
+			400, 400,
+
+			320, 300,
+			140, 200,
+			320, 100,
+		],
+		chains: [
+			[0, 4, 6],
+			[6, 2, 0],
+
+			[6, 8],
+			[8, 6],
+			[8, 10, 12, 8],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+			0, 1, 0.5, 40,
+			1, 0, 0.5, 40,
+
+			4, 0, 0.5, 40,
+			4, 1, 0.5, 40,
+			4, 2, 0.5, 40,
+		],
+		signs: [
+			{
+				type: 'winding',
+				border: '#56c',
+				winding: -1,
+				x: 312,
+				y: 280,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				border: '#56c',
+				winding: 1,
+				x: 420,
+				y: 435,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'good job',
+		group: 'world 4',
+		overworldStyle: 'left: 400px; top: 100px;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			150, 500,
+			300, 500,
+			500, 500,
+			700, 500,
+			700, 300,
+			500, 300,
+			300, 300,
+			100, 300,
+			100, 500,
+		],
+		chains: [
+			[0, 2],
+
+			[2, 4], [4, 2],
+			[4, 6], [6, 4],
+			[6, 8], [8, 6],
+			[8, 10], [10, 8],
+			[10, 12], [12, 10],
+
+			[12, 14],
+			[14, 16],
+
+			[16, 0],
+			[0, 16],
+			[2, 12],
+			[12, 2],
+			[4, 10],
+			[10, 4],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+		],
+		signs: [
+			{
+				type: 'target',
+				border: '#c33',
+				x: 500,
+				y: 400,
+				collisionRadius: 20,
+				destructable: true,
+			},
+			{
+				type: 'match',
+				matches: ['#56c', '#56c'],
+				border: '#433',
+				x: 600,
+				y: 400,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				matches: [],
+				border: '#56c',
+				x: 400,
+				y: 300,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'winding',
+				winding: 1,
+				border: '#56c',
+				x: 300,
+				y: 500,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'free drive',
+		group: 'world 1',
+		overworldStyle: 'left: 560px; top: 130px; background-color: #715; height: 80px;',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [100, 400, 200, 400],
+		chains: [[0, 2, 0]],
+		directionIndicators: [],
+		signs: [],
+	},
+	{
+		name: 'level-background',
+		group: 'world 1',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			-50, 230,
+			160, 220,
+
+			245, 350,
+			450, 315,
+			620, 440,
+
+			620, 580,
+			815, 560,
+		],
+		chains: [
+			[0, 2, 0],
+
+			[4, 6, 8],
+			[10, 12],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+			1, 0, 0.5, 0,
+			2, 0, 0.75, 0,
+		],
+		signs: [
+			{
+				type: 'target',
+				border: '#c33',
+				x: 345,
+				y: 295,
+				collisionRadius: 20,
+				destructable: true,
+			},
+		],
+	},
+	{
+		name: 'level-background',
+		group: 'world 2',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			-50, 580,
+			150, 560,
+			300, 605,
+
+			420, 480,
+			200, 320,
+			400, 250,
+			570, 400,
+
+			610, 350,
+			650, 225,
+			850, 155,
+		],
+		chains: [
+			[0, 2, 0],
+			[2, 4],
+			[6, 8, 10, 12],
+			[14, 16, 18],
+		],
+		directionIndicators: [
+			0, 0, 0.5, 0,
+			3, 1, 0.65, 0,
+		],
+		signs: [
+			{
+				type: 'match',
+				border: '#c33',
+				matches: [],
+				x: 550,
+				y: 230,
+				collisionRadius: 2,
+				destructable: false,
+			},
+			{
+				type: 'match',
+				border: '#433',
+				matches: ['#c33'],
+				x: 50,
+				y: 510,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'level-background',
+		group: 'world 3',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			-50, 215,
+			190, 145,
+			210, 600,
+
+			400, 680,
+			210, 600,
+			500, 500,
+			360, 210,
+			210, 500,
+
+			650, 255,
+			740, 400,
+			630, 450,
+
+			850, 400,
+
+			520, 210,
+		],
+		chains: [
+			[0, 2, 0],
+			[2, 4],
+			[6, 8, 10, 12, 14],
+			[24, 16, 18, 20],
+			[18, 22],
+		],
+		directionIndicators: [
+			0, 0, 0.39, 0,
+			4, 0, 0.3, 0,
+		],
+		signs: [
+			{
+				type: 'winding',
+				border: '#56c',
+				winding: 1,
+				x: 560,
+				y: 385,
+				collisionRadius: 2,
+				destructable: false,
+			},
+		],
+	},
+	{
+		name: 'level-background',
+		group: 'world 4',
+		bestTime: 0,
+		bestTimeMinutes: 0,
+		points: [
+			-50, 400,
+			100, 400,
+			850, 400,
+			310, 590,
+			500, 630,
+
+			260, 200,
+			500, 170,
+		],
+		chains: [
+			[0, 2, 0],
+			[2, 4],
+			[2, 6, 8],
+			[2, 10, 12],
+		],
+		directionIndicators: [
+			0, 0, 0.65, 0,
+		],
+		signs: [],
+	},
+];
+
+const levelsByGroup = {};
+for (let i = 0; i < levels.length; ++i) {
+	const level = levels[i];
+	if (!levelsByGroup[level.group])
+		levelsByGroup[level.group] = [];
+	levelsByGroup[level.group].push(level);
+	const persisted = localStorage.getItem(level.name);
+	// const persisted = null;
+	if (persisted) {
+		const p = JSON.parse(persisted);
+		level.bestTimeMinutes = p.bestTimeMinutes;
+		level.bestTime = p.bestTime;
+	}
+}
+while (currentGroup < groups.length) {
+	let skipGroup = true;
+	for (const level of levelsByGroup[groups[currentGroup]]) {
+		if (level.name === 'level-background' || level.name === 'free drive')
+			continue;
+		if (!level.bestTime && !level.bestTimeMinutes) {
+			skipGroup = false;
+			break;
+		}
+	}
+	if (skipGroup)
+		currentGroup++;
+	else
+		break;
+}
+if (currentGroup >= groups.length)
+	currentGroup = 0;
+
+let currentLevel = 0;
+
+let points = [];
+let chains = [];
+let directionIndicators = [];
+
+let activeIndexInChain = [];
+let activePreviousPointForChain = [];
+let activeProgressInChain = [];
+let objects = [];
+
+const carLength = 24;
+const carWidth = 12;
+const trackWidth = 72;
+const startFinishWidth = 24;
+const signWidth = 28;
+const trackAllowanceFactor = 1.15;
+
+function load() {
+	points = levels[currentLevel].points;
+	chains = levels[currentLevel].chains;
+	directionIndicators = levels[currentLevel].directionIndicators;
+	objects = JSON.parse(JSON.stringify(levels[currentLevel].signs));
+	activeIndexInChain.length = chains.length;
+	activePreviousPointForChain.length = chains.length;
+	activeProgressInChain.length = chains.length;
+	activePreviousPointForChain[0] = 0;
+	for (let i in chains) {
+		const chain = chains[i];
+		activeIndexInChain[i] = -1;
+		activePreviousPointForChain[i] = 0;
+		activeProgressInChain[i] = 0;
+		for (let j = 1; j < chain.length; ++j) {
+			if (chain[j] === 0)
+				activePreviousPointForChain[0] = chain[j - 1];
+		}
+	}
+	activeIndexInChain[0] = 0;
+	activeProgressInChain[0] = -999;
+	carX = points[chains[0][0]];
+	carY = points[chains[0][0] + 1];
+	facingX = points[chains[0][1]] - carX;
+	facingY = points[chains[0][1] + 1] - carY;
+	if (forceStartPosX !== undefined){
+		carX = forceStartPosX;
+		carY = forceStartPosY;
+		if (forceCarFace !== undefined){
+			facingX = forceCarFace[0] - carX;
+			facingY = forceCarFace[1] - carY;
+		}
+	}
+	const len = Math.sqrt(facingX * facingX + facingY * facingY);
+	facingX /= len;
+	facingY /= len;
+	startFinishFacingX = facingX;
+	startFinishFacingY = facingY;
+	carX -= facingX * startFinishWidth;
+	carY -= facingY * startFinishWidth;
+	speed = 0;
+	tickFactor = 1;
+	stopMS = 0;
+	ignoreInputMS = 0;
+	msUntilGameOverMessage = 0;
+	gameOverMessageClassName = '';
+	raceTimer = 0;
+	raceTimerMinutes = 0;
+	newRecord = false;
+	for (const object of objects) {
+		object.flashMS = 0;
+		object.maxDestroyMS = object.destructable ? 400 : 0;
+		object.destroyMS = 0;
+		object.destroyed = false;
+		object.vx = 0;
+		object.vy = 0;
+		object.tilt = 0;
+	}
+	trail.getContext('2d').clearRect(0, 0, trail.width, trail.height);
+	numberOfPointsInTrail = 0;
+	canFinishRace = false;
+	introSlideFactor = 1;
+}
+document.getElementById('bottom-right-button').onclick = function (event) {
+	// let justWon = gameState === 'game-over' && gameOverMessageClassName === 'finish';
+	load();
+	// if (justWon) {
+	// 	gameState = 'loaded';
+	// 	document.querySelector('main').className = 'loaded';
+	// 	document.getElementById('bottom-left-button').textContent = 'LEAVE';
+	// } else {
+		gameState = 'starting';
+		document.querySelector('main').className = 'playing';
+	// }
+	redraw();
+};
+document.getElementById('next-level-button').onclick = function (event) {
+	if (currentGroup + 1 < groups.length) {
+		currentGroup++;
+		levelSelect();
+	} else {
+		for (let i = 0; i < levels.length; ++i) {
+			if (levels[i].ending) {
+				setLevel(i);
+				break;
+			}
+		}
+	}
+};
+document.getElementById('previous-level-button').onclick = function (event) {
+	if (currentGroup - 1 >= 0) {
+		currentGroup--;
+		levelSelect();
+	} else
+		showTitleScreen();
+};
+function showTitleScreen() {
+	endingStartMS = 0;
+	endingMS = 0;
+	gameState = 'title';
+	document.getElementById('bottom-left-button').textContent = 'START GAME';
+	document.getElementById('message').textContent = 'You drove off the road!';
+	document.getElementById('subtitle').textContent = 'a puzzle racing game by panic#9031';
+	document.querySelector('main').className = 'title-screen';
+	redraw();
+}
+
+function setLevel(levelIndex) {
+	const level = levels[levelIndex];
+	currentLevel = levelIndex;
+	load();
+	gameState = 'loaded';
+	document.getElementById('bottom-left-button').textContent = level.ending ? 'PREVIOUS' : 'BACK';
+	document.getElementById('bottom-right-button').textContent = 'START';
+	document.getElementById('subtitle').textContent = level.tutorial ? level.tutorial : '';
+	document.querySelector('main').className = 'loaded';
+	const trackContext = track.getContext('2d');
+	trackContext.save();
+	trackContext.clearRect(0, 0, track.width, track.height);
+	trackContext.scale(dataCanvasScale, dataCanvasScale);
+	trackContext.beginPath();
+	trackContext.lineCap = 'round';
+	trackContext.lineJoin = 'round';
+	trackContext.strokeStyle = '#fff';
+	trackContext.lineWidth = trackWidth * trackAllowanceFactor;
+	for (const chain of chains) {
+		let moved = false;
+		for (const index of chain) {
+			const x = points[index];
+			const y = points[index + 1];
+			if (!moved) {
+				trackContext.moveTo(x, y);
+				moved = true;
+			} else
+				trackContext.lineTo(x, y);
+		}
+	}
+	trackContext.stroke();
+	trackData = trackContext.getImageData(0, 0, track.width, track.height);
+	trackContext.restore();
+	redraw();
+}
+
+function levelSelect() {
+	endingStartMS = 0;
+	endingMS = 0;
+	gameState = 'level-select';
+	document.getElementById('message').textContent = '';//groups[currentGroup];
+	document.querySelector('main').className = 'level-select';
+	const buttonsContainer = document.getElementById('level-buttons');
+	buttonsContainer.innerHTML = '';
+	let unlocksNeeded = 0;
+	let unlocksFinished = 0;
+	for (let i = 0; i < levels.length; ++i) {
+		const level = levels[i];
+		if (level.group !== groups[currentGroup])
+			continue;
+		if (level.name === 'level-background') {
+			currentLevel = i;
+			load();
+			continue;
+		}
+		const button = document.createElement('button');
+		let requiredClass = '';
+		if (level.required)
+			requiredClass = ' required';
+		let time = '';
+		if (level.bestTime > 0 || level.bestTimeMinutes > 0) {
+			time = `<div class='time'>${formatTime(level.bestTimeMinutes, level.bestTime)}</div>`;
+			button.className = `level completed${requiredClass}`;
+			if (level.required)
+				unlocksFinished++;
+		} else
+			button.className = `level${requiredClass}`;
+		button.dataset.levelIndex = i;
+		button.style = level.overworldStyle;
+		button.innerHTML = `<b>${escapeHTML(level.name)}</b>${time}`;
+		button.onclick = function (event) {
+			setLevel(i);
+		};
+		buttonsContainer.appendChild(button);
+		if (level.required)
+			unlocksNeeded++;
+	}
+	document.getElementById('previous-level-button').style.display = currentGroup - 1 >= 0 ? '' : 'none';
+	document.getElementById('next-level-button').disabled = false;
+	document.getElementById('next-level-button').textContent = 'NEXT';
+	if (unlocksFinished < unlocksNeeded) {
+		document.getElementById('next-level-button').textContent = `${unlocksFinished} / ${unlocksNeeded}`;
+		document.getElementById('next-level-button').disabled = true;
+	}
+	redraw();
+}
+document.getElementById('bottom-left-button').onclick = levelSelect;
+
+function escapeHTML(string) {
+	return string.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+}
+
+function formatTime(mins, ms) {
+	const timerSeconds = `00000${ms}`.slice(-5);
+	return `${mins}:${timerSeconds.slice(0, 2)}.${timerSeconds.slice(2, 5)}`;
+}
+
+function project(x1, y1, x2, y2) {
+	return (x1 * x2 + y1 * y2) / (x2 * x2 + y2 * y2);
+}
+function updateProgress() {
+	let debugString = ' /';
+	for (let i in chains) {
+		const chain = chains[i];
+		const activeIndex = activeIndexInChain[i];
+		if (activeIndex < 0) {
+			debugString = `${debugString} ${i} ${activeIndex} /`;
+			continue;
+		}
+		const x = points[chain[activeIndex]];
+		const y = points[chain[activeIndex] + 1];
+		const carOffsetX = carX - x;
+		const carOffsetY = carY - y;
+		const prevX = points[activePreviousPointForChain[i]] - x;
+		const prevY = points[activePreviousPointForChain[i] + 1] - y;
+		const nextX = points[chain[activeIndex + 1]] - x;
+		const nextY = points[chain[activeIndex + 1] + 1] - y;
+		const prevLen = Math.sqrt(prevX * prevX + prevY * prevY);
+		const nextLen = Math.sqrt(nextX * nextX + nextY * nextY);
+		const tPrev = project(carOffsetX, carOffsetY, prevX, prevY);
+		const tNext = project(carOffsetX, carOffsetY, nextX, nextY);
+		const which = tNext * nextLen > tPrev * prevLen;
+		const len = which ? nextLen : prevLen;
+		const progress = which ? Math.max(0, tNext) : -Math.max(0, tPrev);
+		const chainX = which ? nextX * tNext : prevX * tPrev;
+		const chainY = which ? nextY * tNext : prevY * tPrev;
+		if (progress > activeProgressInChain[i])
+			activeProgressInChain[i] = progress;
+		else if (progress < activeProgressInChain[i] - 10 / len)
+			activeIndexInChain[i] = -2;
+
+		const d2 = (chainX - carOffsetX) * (chainX - carOffsetX) + (chainY - carOffsetY) * (chainY - carOffsetY);
+		const progressOffRoadFactor = 0.75 + 1.5 * Math.max(0, tNext);
+		if (d2 > trackWidth * trackWidth * progressOffRoadFactor * progressOffRoadFactor) {
+			// drove off the road!
+			activeIndexInChain[i] = -3;
+		} else if (d2 > trackWidth * trackWidth * 0.25) {
+			const probes = 20;
+			// check whether there are any gaps between the car and the presumed chain location
+			for (let j = 0; j < probes; ++j) {
+				const pixelX = Math.round((carX + j * (chainX - carOffsetX) / probes) * dataCanvasScale);
+				const pixelY = Math.round((carY + j * (chainY - carOffsetY) / probes) * dataCanvasScale);
+				if (pixelX < 0 || pixelY < 0 || pixelX >= trackData.width || pixelY >= trackData.height || trackData.data[4 * (pixelY * trackData.width + pixelX)] < 255)
+					activeIndexInChain[i] = -3;
+			}
+		}
+		debugString = `${debugString} ${i} ${activeIndex} ${Math.round(progress * 100)} /`;
+	}
+	// document.getElementById('debug').textContent = debugString;
+	let anyActive = false;
+	for (let i in chains) {
+		const chain = chains[i];
+		const activeIndex = activeIndexInChain[i];
+		const progress = activeProgressInChain[i];
+		if (activeIndex < 0)
+			continue;
+		anyActive = true;
+		const progressThreshold = 0.5;
+		if (progress <= progressThreshold)
+			continue;
+		canFinishRace = true;
+		if (activeIndex + 2 < chain.length) {
+			activeIndexInChain[i]++;
+			activeProgressInChain[i] = progressThreshold - 1;
+			activePreviousPointForChain[i] = chain[activeIndex];
+		} else {
+			if (progress > 1 && !levels[currentLevel].ending)
+				activeIndexInChain[i] = -1;
+			let hasReset = false;
+			for (let j in chains) {
+				if (chain[chain.length - 1] !== chains[j][0])
+					continue;
+				if (chain[activeIndex] === chains[j][1]) {
+					// don't allow back-and-forth paths.
+					continue;
+				}
+				if (!hasReset) {
+					activeIndexInChain[i] = -1;
+					hasReset = true;
+				}
+				activeIndexInChain[j] = 0;
+				activeProgressInChain[j] = progressThreshold - 1;
+				activePreviousPointForChain[j] = chain[activeIndex];
+			}
+		}
+	}
+	if (!anyActive && gameState !== 'game-over')
+		gameOver('You went the wrong way!', levels[currentLevel].ending ? 'ending error' : 'error');
+}
+
+const ccScale = 0.5;
+const ccWidth = Math.round(viewportWidth * ccScale);
+const ccHeight = Math.round(viewportHeight * ccScale);
+// this is "good enough"
+function ccFind(cc, index) {
+	while (cc[index] !== 0) {
+		const parent = index - cc[index];
+		index = parent;
+	}
+	return index;
+}
+function ccUnion(cc, a, b) {
+	if (cc[a] > a || cc[b] > b)
+		return;
+	a = ccFind(cc, a);
+	b = ccFind(cc, b);
+	if (a === b)
+		return;
+	else if (a > b) {
+		cc[a] = a - b;
+		return;
+	} else {
+		cc[b] = b - a;
+		return;
+	}
+}
+function ccCreate() {
+	let start = performance.now();
+	const cc = new Uint32Array(ccWidth * ccHeight);
+	for (let i = 0; i < numberOfPointsInTrail; i++) {
+		const trailX = Math.round(pointsInTrail[2 * i] * ccScale);
+		const trailY = Math.round(pointsInTrail[2 * i + 1] * ccScale);
+		if (trailX < 0 || trailY < 0 || trailX >= ccWidth || trailY >= ccHeight)
+			continue;
+		cc[trailY * ccWidth + trailX] = cc.length;
+	}
+	console.log(`elapsed fill: ${performance.now() - start}`);
+	start = performance.now();
+	let index = ccWidth + 1;
+	// this loop misses one pixel at the top left... which is fine.
+	for (let i = ccWidth + 1; i < ccWidth * ccHeight; ++i) {
+		ccUnion(cc, i, i - ccWidth);
+		ccUnion(cc, i, i - 1);
+	}
+	console.log(`elapsed union: ${performance.now() - start}`);
+	return cc;
+}
+
+function checkSolved() {
+	let solved = true;
+	let connectedComponents = ccCreate();
+	let ccForObject = [];
+	for (let i = 0; i < objects.length; ++i) {
+		const object = objects[i];
+		if (object.destroyed)
+			continue;
+		const ccX = Math.round(object.x * ccScale);
+		const ccY = Math.round(object.y * ccScale);
+		if (ccX < 0 || ccY < 0 || ccX >= ccWidth || ccY >= ccHeight)
+			ccForObject[i] = -1;
+		else if (connectedComponents[ccY * ccWidth + ccX] > ccY * ccWidth + ccX)
+			ccForObject[i] = -1;
+		else
+			ccForObject[i] = ccFind(connectedComponents, ccY * ccWidth + ccX);
+	}
+	for (let i = 0; i < objects.length; ++i) {
+		const object = objects[i];
+		if (object.destroyed)
+			continue;
+		switch (object.type) {
+		case 'winding':
+			let windingNumber = 0;
+			for (let i = 1; i < numberOfPointsInTrail; i++) {
+				const prevTrailX = pointsInTrail[2 * i - 2] - object.x;
+				const prevTrailY = pointsInTrail[2 * i - 1] - object.y;
+				const trailX = pointsInTrail[2 * i] - object.x;
+				const trailY = pointsInTrail[2 * i + 1] - object.y;
+				windingNumber += Math.atan2(prevTrailX * trailY - prevTrailY * trailX, prevTrailX * trailX + prevTrailY * trailY) / (Math.PI * 2);
+			}
+			if (Math.abs(windingNumber - object.winding) > 1e-3) {
+				solved = false;
+				object.flashMS = 900 * 999999;
+			}
+			break;
+		case 'target':
+			solved = false;
+			object.flashMS = 900 * 999999;
+			break;
+		case 'match':
+			const matchesRemaining = {};
+			for (const match of object.matches) {
+				if (matchesRemaining[match])
+					matchesRemaining[match]++;
+				else
+					matchesRemaining[match] = 1;
+			}
+			for (let j = 0; j < objects.length; ++j) {
+				if (objects[j].destroyed || j === i || ccForObject[j] !== ccForObject[i])
+					continue;
+				const border = objects[j].border;
+				if (matchesRemaining.hasOwnProperty(border))
+					matchesRemaining[objects[j].border]--;
+			}
+			for (const match in matchesRemaining) {
+				if (matchesRemaining[match] !== 0) {
+					solved = false;
+					object.flashMS = 900 * 999999;
+					break;
+				}
+			}
+			break;
+		default:
+			break;
+		}
+	}
+	if (solved) {
+		gameOver('Finish!', 'finish');
+		msUntilGameOverMessage = 1;
+		if (levels[currentLevel].bestTime === 0 || raceTimerMinutes < levels[currentLevel].bestTimeMinutes || (raceTimerMinutes === levels[currentLevel].bestTimeMinutes && raceTimer < levels[currentLevel].bestTime)) {
+			levels[currentLevel].bestTimeMinutes = raceTimerMinutes;
+			levels[currentLevel].bestTime = raceTimer;
+			localStorage.setItem(levels[currentLevel].name, JSON.stringify({ bestTimeMinutes: levels[currentLevel].bestTimeMinutes, bestTime: levels[currentLevel].bestTime }));
+			newRecord = true;
+		}
+	} else {
+		gameState = 'game-over';
+		stopMS = 999999999;
+		// ignoreInputMS = 2400;
+		document.querySelector('main').className = 'buttons-only';
+	}
+}
+
+function gameOver(message, className) {
+	if (levels[currentLevel].name === 'free drive')
+		return;
+	gameState = 'game-over';
+	msUntilGameOverMessage = msUntilGameOverMessageMax;
+	gameOverMessage = message;
+	gameOverMessageClassName = className;
+}
+
+function drawObject(ctx, object) {
+	ctx.lineCap = 'round';
+	ctx.lineJoin = 'round';
+	const flashing = object.flashMS > 0 && ((Math.floor(object.flashMS / 300) % 3));
+
+	if (object.destroyed && object.destroyMS < 150 && !((Math.floor(object.destroyMS / 30) % 2)))
+		return;
+
+	ctx.save();
+
+	if (object.tilt) {
+		ctx.translate(object.x, object.y);
+		ctx.rotate(2 * Math.PI * object.tilt);
+		ctx.translate(-object.x, -object.y);
+	}
+
+	let signHeight = 35;
+	ctx.lineWidth = 6;
+	if (object.maxDestroyMS === 0) {
+		ctx.strokeStyle = '#433';
+		ctx.beginPath();
+		ctx.moveTo(object.x, object.y - signHeight);
+		ctx.lineTo(object.x, object.y);
+		ctx.stroke();
+	} else {
+		ctx.strokeStyle = '#544';
+		signHeight = 5;
+		ctx.beginPath();
+		ctx.moveTo(object.x - 12, object.y - signHeight);
+		ctx.lineTo(object.x - 15, object.y + 15);
+		ctx.moveTo(object.x + 12, object.y - signHeight);
+		ctx.lineTo(object.x + 15, object.y + 15);
+		ctx.moveTo(object.x - 12, object.y + 8);
+		ctx.lineTo(object.x + 12, object.y + 8);
+		ctx.stroke();
+	}
+
+	ctx.beginPath();
+	ctx.moveTo(object.x, object.y + 10 - 2 * signWidth - signHeight);
+	ctx.lineTo(object.x + signWidth, object.y + 10 - signWidth - signHeight);
+	ctx.lineTo(object.x, object.y + 10 - signHeight);
+	ctx.lineTo(object.x - signWidth, object.y + 10 - signWidth - signHeight);
+	ctx.closePath();
+	ctx.fillStyle = flashing ? '#f00' : '#fee';
+	ctx.fill();
+	ctx.lineWidth = 12;
+	ctx.strokeStyle = flashing ? '#f00' : '#fee';
+	ctx.stroke();
+	ctx.lineWidth = 6;
+	ctx.strokeStyle = flashing ? '#fee' : object.border;
+	ctx.stroke();
+
+	ctx.save();
+	ctx.translate(object.x, object.y + 10 - signWidth - signHeight);
+	ctx.scale(signWidth, signWidth);
+
+	switch (object.type) {
+	case 'winding':
+
+		let winding = object.winding;
+		if (winding < 0) {
+			ctx.scale(-1, 1);
+			winding = -winding;
+		}
+		ctx.beginPath();
+		ctx.arc(0, 1, 1, Math.PI + 1.05, 2 * Math.PI - 1.05);
+		switch (winding) {
+		case 0:
+			break;
+		case 1:
+			ctx.moveTo(-0.05, -0.19);
+			ctx.lineTo(0.15, 0.01);
+			ctx.lineTo(-0.05, 0.21);
+			break;
+		case 2:
+			ctx.save();
+			ctx.translate(0.14 - 0.15, -0.18);
+			ctx.rotate(Math.PI * -0.01);
+			ctx.moveTo(-0.2, 0);
+			ctx.lineTo(0, 0.2);
+			ctx.lineTo(-0.2, 0.4);
+			ctx.restore();
+			ctx.save();
+			ctx.translate(0.14 + 0.15, -0.17);
+			ctx.rotate(Math.PI * 0.01);
+			ctx.moveTo(-0.2, 0);
+			ctx.lineTo(0, 0.2);
+			ctx.lineTo(-0.2, 0.4);
+			ctx.restore();
+			break;
+		default:
+			break;
+		}
+		ctx.strokeStyle = flashing ? '#fee' : '#433';
+		ctx.lineWidth = 0.15;
+		ctx.stroke();
+
+		break;
+	case 'target':
+
+		ctx.beginPath();
+		ctx.arc(0, 0, 0.4, 0, 2 * Math.PI);
+		ctx.strokeStyle = flashing ? '#fee' : '#433';
+		ctx.lineWidth = 0.15;
+		ctx.stroke();
+
+		ctx.beginPath();
+		ctx.arc(0, 0, 0.2, 0, 2 * Math.PI);
+		ctx.fillStyle = flashing ? '#fee' : '#433';
+		ctx.fill();
+
+		break;
+	case 'match':
+		const size = 1 / (object.matches.length + 1);
+		for (let i = 0; i < object.matches.length; ++i) {
+			const x = (i + 0.5) / (object.matches.length) - 0.5;
+			ctx.beginPath();
+			ctx.moveTo(x, -size);
+			ctx.lineTo(x - size, 0);
+			ctx.lineTo(x, size);
+			ctx.lineTo(x + size, 0);
+			ctx.closePath();
+			ctx.fillStyle = flashing ? '#f00' : '#fee';
+			ctx.fill();
+			ctx.lineWidth = 0.3 * size + 0.1;
+			ctx.strokeStyle = flashing ? '#f00' : '#fee';
+			ctx.stroke();
+			ctx.lineWidth = 0.3 * size;
+			ctx.strokeStyle = flashing ? '#fee' : object.matches[i];
+			ctx.stroke();
+		}
+
+		break;
+
+	default:
+		break;
+	}
+
+	ctx.restore();
+
+	ctx.restore();
+}
+function redraw() {
+
+	let endingTranslation = 0;	
+	if (endingMS > 0)
+		endingTranslation = endingMS;
+	document.getElementById('message').style.transform = `translate(0, -${endingTranslation}px)`;
+	document.getElementById('ending-text').style.transform = `translate(0, -${endingTranslation}px)`;
+
+	const ctx = canvas.getContext('2d');
+	ctx.fillStyle = (gameState === 'loaded' && levels[currentLevel].name === 'free drive') ? '#a87' : '#fdc';
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+	if (gameState === 'title')
+		return;
+	ctx.imageSmoothingEnabled = false;
+	ctx.mozImageSmoothingEnabled = false;
+	ctx.webkitImageSmoothingEnabled = false;
+	ctx.save();
+	ctx.scale(originalDevicePixelRatio, originalDevicePixelRatio);
+	ctx.translate(0, -endingTranslation);
+
+	ctx.strokeStyle = '#a87';
+	ctx.lineWidth = trackWidth;
+	ctx.lineCap = 'round';
+	ctx.lineJoin = 'round';
+
+	ctx.beginPath();
+	for (const chain of chains) {
+		let moved = false;
+		for (const index of chain) {
+			const x = points[index];
+			const y = points[index + 1];
+			if (!moved) {
+				ctx.moveTo(x, y);
+				moved = true;
+			} else
+				ctx.lineTo(x, y);
+		}
+	}
+	ctx.stroke();
+
+	if (levels[currentLevel].name !== 'free drive' && gameState !== 'level-select') {
+		const startFinishX = points[chains[0][0]];
+		const startFinishY = points[chains[0][0] + 1];
+		ctx.save();
+		ctx.transform(startFinishFacingX, startFinishFacingY, -startFinishFacingY, startFinishFacingX, startFinishX, startFinishY);
+		let swap = false;
+		const checkerboardSize = startFinishWidth / 2;
+		for (let y = 0; y < trackWidth; y += checkerboardSize) {
+			ctx.fillStyle = swap ? '#433' : '#fee';
+			ctx.fillRect(0, y - trackWidth/2, checkerboardSize, checkerboardSize);
+			ctx.fillStyle = swap ? '#fee' : '#433';
+			ctx.fillRect(checkerboardSize, y - trackWidth / 2, checkerboardSize, checkerboardSize);
+			swap = !swap;
+		}
+		ctx.restore();
+	}
+
+	ctx.fillStyle = '#976';
+	ctx.strokeStyle = '#976';
+	ctx.lineWidth = 5;
+	for (let i = 0; i < directionIndicators.length; i += 4) {
+		const chain = directionIndicators[i];
+		const index = directionIndicators[i + 1];
+		const progress = directionIndicators[i + 2];
+		const gap = directionIndicators[i + 3];
+		const x = points[chains[chain][index]];
+		const y = points[chains[chain][index] + 1];
+		let dx = points[chains[chain][index + 1]] - x;
+		let dy = points[chains[chain][index + 1] + 1] - y;
+		const cx = x + progress * dx;
+		const cy = y + progress * dy;
+		const d = Math.sqrt(dx * dx + dy * dy);
+		dx /= d;
+		dy /= d;
+		ctx.beginPath();
+		for (let j = -1; j <= 1; j += 2) {
+			const ax = cx + j * dx * gap;
+			const ay = cy + j * dy * gap;
+			ctx.moveTo(ax + dx * 8, ay + dy * 8);
+			ctx.lineTo(ax - dx * 8 - dy * 16, ay - dy * 8 + dx * 16);
+			ctx.lineTo(ax - dx * 4, ay - dy * 4);
+			ctx.lineTo(ax - dx * 8 + dy * 16, ay - dy * 8 - dx * 16);
+			ctx.closePath();
+		}
+		ctx.fill();
+		ctx.stroke();
+	}
+
+	if (levels[currentLevel].name === 'free drive' || gameState !== 'loaded')
+		ctx.drawImage(trail, 0, 0, trail.width, trail.height, 0, 0, viewportWidth, viewportHeight);
+
+	if (gameState !== 'level-select') {
+		ctx.strokeStyle = '#000';
+		ctx.lineWidth = carWidth;
+		ctx.lineCap = 'butt';
+		ctx.beginPath();
+		const effectiveX = gameState === 'loaded' ? carX - introSlideDistance * introSlideFactor * facingX : carX;
+		const effectiveY = gameState === 'loaded' ? carY - introSlideDistance * introSlideFactor * facingY : carY;
+		ctx.moveTo(effectiveX - 0.5 * carLength * facingX, effectiveY - 0.5 * carLength * facingY);
+		ctx.lineTo(effectiveX + 0.5 * carLength * facingX, effectiveY + 0.5 * carLength * facingY);
+		ctx.stroke();
+	}
+
+	for (const object of objects)
+		drawObject(ctx, object);
+
+	if (gameState !== 'loaded' && gameState !== 'level-select' && !levels[currentLevel].ending) {
+		ctx.fillStyle = '#433';
+		if (gameState === 'game-over' && gameOverMessageClassName !== 'finish')
+			ctx.fillStyle = '#a87';
+		ctx.font = '24px Georgia';
+		if (gameState === 'game-over' && gameOverMessageClassName === 'finish')
+			ctx.font = 'bold 36px Georgia';
+		ctx.textBaseline = 'top';
+		ctx.fillText(formatTime(raceTimerMinutes, raceTimer), 20, 10);
+		if (gameState === 'game-over' && gameOverMessageClassName === 'finish') {
+			if (newRecord) {
+				ctx.font = 'bold 24px Georgia';
+				ctx.fillStyle = '#c33';
+				ctx.fillText('New Best Time!', 20, 55);
+			} else {
+				ctx.font = '24px Georgia';
+				ctx.fillText(`Best Time ${formatTime(levels[currentLevel].bestTimeMinutes, levels[currentLevel].bestTime)}`, 20, 55);
+			}
+		}
+	}
+
+	ctx.restore();
+}
+function tick(dt) {
+	if (gameState === 'level-select' || gameState === 'title')
+		return;
+	let needsRedraw = false;
+	dt *= tickFactor;
+	const trailContext = trail.getContext('2d');
+	trailContext.fillStyle = '#fff';
+	dt += dtRemainder;
+	dtRemainder = dt;
+	for (let i = 0; i < Math.floor(dt); ++i) {
+		dtRemainder = dt - i - 1;
+		if (ignoreInputMS > 0)
+			ignoreInputMS--;
+		if (stopMS > 0)
+			stopMS--;
+		if (endingMS > 0 && endingMS < endingMSMax) {
+			endingMS++;
+			needsRedraw = true;
+		}
+		if (endingStartMS > 0) {
+			if (!--endingStartMS) {
+				endingMS = 1;
+				needsRedraw = true;
+			}
+		}
+		
+		if (!frameAdvance || doFrame > 0) {
+			getTasInputsGamePlay();
+			if (controllerPressed && ignoreInputMS === 0 && stopMS === 0) {
+				doFrame--;
+				let dx = controllerX - carX;
+				let dy = controllerY - carY;
+				let d = Math.sqrt(dx * dx + dy * dy);
+				if (d > 5) {
+					dx /= d;
+					dy /= d;
+					const speedFactor =  Math.min(speed * 1.3, 1);
+					const facingFactorFactor = 0.998 * speedFactor + 0.95 * (1 - speedFactor);
+					const facingFactor = Math.pow(facingFactorFactor, speed);
+					facingX = facingX * facingFactor + dx * (1 - facingFactor);
+					facingY = facingY * facingFactor + dy * (1 - facingFactor);
+					const len = Math.sqrt(facingX * facingX + facingY * facingY);
+					facingX /= len;
+					facingY /= len;
+					const dot = facingX * dx + facingY * dy;
+					if (dot > 0) {
+						if (gameState === 'loaded' && levels[currentLevel].name !== 'free drive') {
+							load();
+							gameState = 'starting';
+							if (!levels[currentLevel].ending) {
+								document.querySelector('main').className = 'playing';
+								document.getElementById('bottom-left-button').textContent = 'LEVEL SELECT';
+								document.getElementById('bottom-right-button').textContent = 'RESTART';
+							}
+							needsRedraw = true;
+						}
+						const targetSpeed = Math.min(d / 300, 1);
+						const factor = Math.pow(0.995, dot);
+						speed = speed * factor + targetSpeed * (1 - factor);
+
+					}
+				}
+			}
+		}
+		if (introSlideFactor > 1e-3) {
+			introSlideFactor *= introSlideFactorDeceleration;
+			needsRedraw = true;
+		} else
+			introSlideFactor = 0;
+		if (stopMS === 0 && (!frameAdvance || doFrame > 0)) {
+			speed *= 0.998;
+			if (speed < 1e-3 && !controllerPressed)
+				speed = 0;
+			carX += facingX * speed;
+			carY += facingY * speed;
+			const r = 2;
+			// const r = Math.round(Math.pow(Math.random(), 2) * 3);
+			if (gameState !== 'starting') {
+				trailContext.fillRect(Math.round((carX - r) * trailScale), Math.round((carY - r / 2) * trailScale), 2 * r * trailScale, r * trailScale);
+				trailContext.fillRect(Math.round((carX - r / 2) * trailScale), Math.round((carY - r) * trailScale), r * trailScale, 2 * r * trailScale);
+				if ((numberOfPointsInTrail + 800) * 2 + 1 < pointsInTrail.length) {
+					pointsInTrail[numberOfPointsInTrail * 2] = carX;
+					pointsInTrail[numberOfPointsInTrail * 2 + 1] = carY;
+					if (numberOfPointsInTrail < 1 || pointsInTrail[numberOfPointsInTrail * 2] !== pointsInTrail[numberOfPointsInTrail * 2 - 2] || pointsInTrail[numberOfPointsInTrail * 2 - 1] !== pointsInTrail[numberOfPointsInTrail * 2 + 1])
+						numberOfPointsInTrail++;
+				} else if (gameState !== 'game-over')
+					gameOver('Your time has run out!', 'error');
+			}
+			const startFinishX = points[chains[0][0]];
+			const startFinishY = points[chains[0][0] + 1];
+			let preX = carX - startFinishX;
+			let preY = carY - startFinishY;
+			if (canFinishRace) {
+				preX += facingX * carLength / 2;
+				preY += facingY * carLength / 2;
+			}
+			const carInStartFinishX = preX * startFinishFacingX + preY * startFinishFacingY;
+			const carInStartFinishY = -preX * startFinishFacingY + preY * startFinishFacingX;
+			if (Math.abs(carInStartFinishY) < trackWidth / 2 * trackAllowanceFactor * 1.05 && carInStartFinishX < startFinishWidth && carInStartFinishX > 0) {
+				let headedForGoal = false;
+				for (let i in chains) {
+					if (activeIndexInChain[i] >= 0 && chains[i][activeIndexInChain[i]] === 0) {
+						headedForGoal = true;
+						break;
+					}
+				}
+				if (gameState === 'starting')
+					gameState = 'active';
+				else if (headedForGoal && canFinishRace && gameState === 'active') {
+					let closeDX = pointsInTrail[0] - carX;
+					let closeDY = pointsInTrail[1] - carY;
+					let dist = Math.sqrt(closeDX * closeDX + closeDY * closeDY);
+					closeDX /= dist;
+					closeDY /= dist;
+					for (let i = 1; i < dist; ++i) {
+						pointsInTrail[numberOfPointsInTrail * 2] = carX + i * closeDX;
+						pointsInTrail[numberOfPointsInTrail * 2 + 1] = carY + i * closeDY;
+						numberOfPointsInTrail++;
+					}
+					pointsInTrail[numberOfPointsInTrail * 2] = pointsInTrail[0];
+					pointsInTrail[numberOfPointsInTrail * 2 + 1] = pointsInTrail[1];
+					numberOfPointsInTrail++;
+					checkSolved();
+				}
+			}
+			const pixelX = Math.round(carX * dataCanvasScale);
+			const pixelY = Math.round(carY * dataCanvasScale);
+			if (pixelX < 0 || pixelY < 0 || pixelX >= trackData.width || pixelY >= trackData.height || trackData.data[4 * (pixelY * trackData.width + pixelX)] < 255) {
+				if (gameState !== 'game-over') {
+					gameOver('You drove off the road!', levels[currentLevel].ending ? 'ending' : 'error');
+					if (levels[currentLevel].ending)
+						endingStartMS = 100;
+				}
+			}
+			if (gameState !== 'game-over')
+				updateProgress();
+			if (gameState === 'active') {
+				raceTimer++;
+				while (raceTimer >= 60000) {
+					raceTimer -= 60000;
+					raceTimerMinutes++;
+				}
+				needsRedraw = true;
+			}
+		}
+		if (msUntilGameOverMessage > 0) {
+			if (--msUntilGameOverMessage === 0) {
+				document.getElementById('message').textContent = gameOverMessage;
+				document.querySelector('main').className = gameOverMessageClassName;
+			}
+			const t = msUntilGameOverMessage / msUntilGameOverMessageMax;
+			tickFactor = t + 0.05 * (1 - t);
+		}
+		for (const object of objects) {
+			if (object.flashMS > 0) {
+				object.flashMS--;
+				needsRedraw = true;
+			}
+			if (object.destroyMS > 0 && stopMS === 0) {
+				object.destroyMS--;
+				needsRedraw = true;
+			}
+			if (object.collisionRadius > 0 && gameState !== 'game-over') {
+				const objX = object.x - carX;
+				const objY = object.y - carY;
+				const r = object.collisionRadius + carWidth / 2;
+				if (objX * objX + objY * objY < r * r) {
+					if (object.maxDestroyMS > 0) {
+						if (!object.destroyed) {
+							stopMS = 40;
+							object.destroyMS = object.maxDestroyMS;
+							object.destroyed = true;
+							object.vx = facingX * speed * 2;
+							object.vy = facingY * speed * 2 - 0.3;
+							object.tilt = objX > 0 ? 0.05 : -0.05;
+							if (objY > Math.abs(objX))
+								object.tilt = -object.tilt;
+							object.x += 10 * object.vx;
+							object.y += 10 * object.vy;
+						}
+					} else {
+						gameOver('You ran into a sign!', 'error');
+						stopMS = 999999999;
+					}
+				}
+			}
+			if (object.vx !== 0 || object.vy !== 0) {
+				if (stopMS === 0) {
+					object.x += object.vx;
+					object.y += object.vy;
+					object.vx *= 0.998;
+					object.vy *= 0.998;
+					object.vy += 0.001;
+				}
+			}
+		}
+	}
+	displayTasInfo();
+	if (speed > 0 || needsRedraw)
+		redraw();
+}
+canvas.width = viewportWidth * originalDevicePixelRatio;
+canvas.height = viewportHeight * originalDevicePixelRatio;
+canvas.style.width = viewportWidth + 'px';
+canvas.style.height = viewportHeight + 'px';
+trail.width = viewportWidth * trailScale;
+trail.height = viewportHeight * trailScale;
+track.width = viewportWidth * dataCanvasScale;
+track.height = viewportHeight * dataCanvasScale;
+
+redraw();
+
+let lastTimestamp;
+function animationFrame(timestamp) {
+	let dt;
+	if (lastTimestamp)
+		dt = timestamp - lastTimestamp;
+	lastTimestamp = timestamp;
+	if (dt > 500) {
+		// don't sim for too long if the timer is paused...
+		dt = 500;
+	}
+	if (dt)
+		tick(dt);
+	requestAnimationFrame(animationFrame);
+}
+window.requestAnimationFrame(animationFrame);
+
+/*
+canvas.addEventListener('pointermove', function (event) {
+	const rect = canvas.getBoundingClientRect();
+	controllerX = event.clientX - rect.left;
+	controllerY = event.clientY - rect.top;
+});
+canvas.addEventListener('pointerup', function (event) {
+	controllerPressed = false;
+});
+canvas.addEventListener('pointercancel', function (event) {
+	controllerPressed = false;
+});
+*/
+canvas.addEventListener('touchstart', function (event) {
+	event.preventDefault();
+});
+
+
+showTitleScreen();
+
+// levelSelect();
+for (let i = 0; i < levels.length; ++i) {
+	if (levels[i].name[0] === '*') {
+		setLevel(i);
+		break;
+	}
+}
+
+</script>
+<script>let tasFiles = [];</script>
+<!-- load your tasfile(s) here-->
+
+
+<script src="tasFiles/racetrack.js"></script>
+<script src="tasFiles/shortcut.js"></script>
+
+<script src="tasFiles/not_so_fast.js"></script>
+
+<script>
+// tas stuff
+
+var frameAdvance = false; //tasData.frameAdvance !== undefined;
+var doFrame = 0; //tasData.skipFrames !== undefined ? tasData.skipFrames : 0;
+var frameAdvanceRate = 0; //tasData.frameAdvance
+
+var tasInputs;
+var inputLine = [];
+var inputLineCounter = [];
+var tasInputCounter = 0;
+
+var finishFrame;
+
+document.onkeydown = function (event) {
+	if (event.key == 'p'){
+		doFrame = frameAdvanceRate;
+	}
+	if (event.key == 'o'){
+		doFrame = 1;
+	}
+	if (event.key == 'i'){
+		doFrame = Infinity;
+	}
+}
+
+let mouseClickX;
+let mouseClickY;
+
+let forceStartPosX;
+let forceStartPosY;
+
+let forceCarFace;
+
+canvas.addEventListener('pointerdown', function (event) {
+	const rect = canvas.getBoundingClientRect();
+	mouseClickX = event.clientX - rect.left;
+	mouseClickY = event.clientY - rect.top;
+});
+
+function displayTasInfo(){
+	let dx = controllerX - carX;
+	let dy = controllerY - carY;
+	let d = Math.sqrt(dx * dx + dy * dy);
+	let targetSpeed = Math.min(d / 300, 1);
+	document.getElementById("tas-info").innerText = `Speed:${speed}\nPos:(${carX},${carY})\nTargetSpeed:${targetSpeed}\nFacing:(${facingX},${facingY})\nFrame:${tasInputCounter}\nInputs:${tasInputs[tasInputCounter][0]},${tasInputs[tasInputCounter][1]}\nsource: Line ${inputLine[tasInputCounter]} frame ${inputLineCounter[tasInputCounter]}${gameState == "game-over" ? "\nFinish Frame:" + finishFrame + " (" + inputLine[tasInputCounter] + ":" + inputLineCounter[tasInputCounter+1] + ")": ""}${mouseClickX !== undefined ? "\nMousePos: (" + mouseClickX + "," + mouseClickY + ")": ""}`;
+}
+
+function parseInputLine(line, linenum){
+	let stripped = line.replace(/\s/g, '');
+	if (stripped == "") return [];
+	if (stripped[0] == "#") return [];
+	if (stripped == "***") return 0; //breakpoint
+	if (stripped.includes(".")) return "ParseError: Fractional numbers are not allowed, happens at line " + linenum;
+
+	let split = stripped.split(/[:|,]/);
+	if (split.length == 1){
+		return Array(parseInt(split[0])).fill(false);
+	}
+	if (split.length == 3){
+		let x = parseInt(split[1]);
+		let y = parseInt(split[2]);
+		if (x < 0 || x > 800){
+			return "ParseError: x out of boand at index " + linenum;
+		}
+		if (y < 0 || y > 800){
+			return "ParseError: y out of boand at index " + linenum;
+		}
+		return Array(parseInt(split[0])).fill([x,y]);
+	}
+	return "ParseError: Line with weird format at index " + linenum;
+}
+
+function parseInputs(tasData){
+	result = [];
+	errors = [];
+	failed = false;
+	inputs = tasData.inputs.split("\n");
+	for (let i=0; i<inputs.length; i++){
+		let parsed = parseInputLine(inputs[i], i);
+		if (typeof parsed == "string"){
+			failed = true;
+			errors.push(parsed);
+		}
+		else if (typeof parsed == "number"){
+			if (parsed == 0){
+				doFrame = result.length;
+			}
+		}
+		else if (!failed){
+			result = result.concat(parsed);
+			inputLine = inputLine.concat(Array(parsed.length).fill(i));
+			inputLineCounter = inputLineCounter.concat(Array.from(Array(parsed.length).keys()))
+		}
+	}
+	if (failed){
+		document.getElementById("tas-info").innerText = errors.join("\n");
+	}
+	else {
+		tasInputs = result;
+
+		if (tasData.loadLevel !== undefined){
+			tasInputCounter = 0;
+
+			if (tasData.startPos !== undefined){
+				forceStartPosX = tasData.startPos[0];
+				forceStartPosY = tasData.startPos[1];
+
+				if (tasData.startFacing !== undefined){
+					forceCarFace = tasData.startFacing;
+				}
+			}
+
+			setLevel(levels.findIndex(level => level.name == tasData.loadLevel))
+
+			frameAdvance = tasData.frameAdvance !== undefined;
+			doFrame = tasData.skipFrames !== undefined ? tasData.skipFrames : 0;
+			frameAdvanceRate = tasData.frameAdvance;
+			displayTasInfo();
+		}
+	}
+}
+
+let nextLevelCounter = 0;
+
+function getTasInputsGamePlay(){
+	if (gameState == "game-over"){
+		finishFrame = tasInputCounter;
+		//controllerX = 0;
+		//controllerY = 0;
+		controllerPressed = true;
+
+		if (tasFiles.length > tasFileCounter+1) {
+			nextLevelCounter++;
+			if (nextLevelCounter>100){
+				controllerPressed = false;
+				nextLevelCounter = 0;
+				tasFileCounter++;
+				parseInputs(tasFiles[tasFileCounter]);
+			}
+		}
+		return;
+	}
+	if (tasInputCounter >= tasInputs.length) return;
+	let input = tasInputs[tasInputCounter];
+	tasInputCounter++;
+	if (input === false){
+		controllerPressed = false;
+		return;
+	}
+	controllerX = input[0];
+	controllerY = input[1];
+	controllerPressed = true;
+}
+
+let tasFileCounter = 0;
+
+parseInputs(tasFiles[tasFileCounter]);
+
+</script>
