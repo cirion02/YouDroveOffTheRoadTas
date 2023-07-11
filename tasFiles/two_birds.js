@@ -2,7 +2,6 @@ tasFiles.push({
 loadLevel : "two birds",
 //skipFrames: 400,
 //frameAdvance : 10,
-showHitbox : true,
 inputs : `
 400:800,500
 160:800,0
