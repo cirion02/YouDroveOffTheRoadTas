@@ -3715,6 +3715,14 @@ function drawObject(ctx, object) {
 
 	ctx.restore();
 
+	if (showHitbox && !object.destroyed) {
+		ctx.beginPath();
+		ctx.arc(object.x, object.y, object.collisionRadius + carWidth / 2, 0, 2 * Math.PI, false);
+		ctx.closePath();
+		ctx.fillStyle = '#cc3333';
+		ctx.fill();
+	}
+
 	ctx.restore();
 }
 function redraw() {
@@ -4114,9 +4122,9 @@ for (let i = 0; i < levels.length; ++i) {
 <script src="tasFiles/racetrack.js"></script>
 <script src="tasFiles/shortcut.js"></script>
 <script src="tasFiles/not_so_fast.js"></script>
--->
-
 <script src="tasFiles/the_maze.js"></script>
+-->
+<script src="tasFiles/two_birds.js"></script>
 <script>
 // tas stuff
 
@@ -4156,6 +4164,8 @@ let forceStartPosY;
 
 let forceCarFace;
 
+let showHitbox = false;
+
 canvas.addEventListener('pointerdown', function (event) {
 	const rect = canvas.getBoundingClientRect();
 	mouseClickX = event.clientX - rect.left;
@@ -4167,7 +4177,7 @@ function displayTasInfo(){
 	let dy = controllerY - carY;
 	let d = Math.sqrt(dx * dx + dy * dy);
 	let targetSpeed = Math.min(d / 300, 1);
-	document.getElementById("tas-info").innerText = `Speed:${speed}\nPos:(${carX},${carY})\nTargetSpeed:${targetSpeed}\nFacing:(${facingX},${facingY})\nFrame:${tasInputCounter}\nInputs:${tasInputs[tasInputCounter][0]},${tasInputs[tasInputCounter][1]}\nsource: Line ${inputLine[tasInputCounter]} frame ${inputLineCounter[tasInputCounter]}${gameState == "game-over" ? "\nFinish Frame:" + finishFrame + " (" + inputLine[tasInputCounter] + ":" + inputLineCounter[tasInputCounter+1] + ")": ""}${mouseClickX !== undefined ? "\nMousePos: (" + mouseClickX + "," + mouseClickY + ")": ""}`;
+	document.getElementById("tas-info").innerText = `Speed:${speed}\nPos:(${carX},${carY})\nTargetSpeed:${targetSpeed}\nFacing:(${facingX},${facingY})\nFrame:${tasInputCounter}\nInputs:${tasInputs[tasInputCounter][0]},${tasInputs[tasInputCounter][1]}\nsource: Line ${inputLine[tasInputCounter]} frame ${inputLineCounter[tasInputCounter]}${gameState == "game-over" ? "\nFinish Frame:" + finishFrame + " (" + inputLine[tasInputCounter] + ":" + inputLineCounter[tasInputCounter+1] + ")": ""}${mouseClickX !== undefined ? "\nMousePos: (" + mouseClickX + "," + mouseClickY + ")": ""}\n\n---------`;
 }
 
 function parseInputLine(line, linenum){
@@ -4233,6 +4243,13 @@ function parseInputs(tasData){
 				if (tasData.startFacing !== undefined){
 					forceCarFace = tasData.startFacing;
 				}
+			}
+
+			if (tasData.showHitbox !== undefined){
+				showHitbox = tasData.showHitbox;
+			}
+			else {
+				showHitbox = false;
 			}
 
 			setLevel(levels.findIndex(level => level.name == tasData.loadLevel))
