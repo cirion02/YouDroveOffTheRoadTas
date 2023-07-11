@@ -193,6 +193,18 @@ main {
 	font-size: 32px;
 	line-height: 1.5em;
 }
+
+table {
+   position:absolute;
+   top:20px;
+   right:60px;
+}
+
+td {
+	border:1px solid black;
+	padding: 3px;
+}
+
 </style>
 <main class='title-screen'>
 <canvas id='main'></canvas>
@@ -210,10 +222,21 @@ main {
 <span id='message'>You drove off the road!</span>
 <span id='subtitle'>a puzzle racing game by panic#9031</span>
 </main>
+<table id="timer">
+	<tr>
+		<td style="visibility: collapse;"></td>
+		<td style="visibility: collapse;">-0:00.000-</td>
+	</tr>
+	<tr id="totalRow">
+		<td>Total</td>
+		<td id="totalTime">0:00.000</td>
+	</tr>
+</table>
 <canvas id='track'></canvas>
 <canvas id='trail'></canvas>
 <pre id='debug'></pre>
 <p id="tas-info"></p>
+
 
 <script src="levels.js"></script>
 <script>
@@ -1454,14 +1477,17 @@ let nextLevelCounter = 0;
 
 function getTasInputsGamePlay(){
 	if (gameState == "game-over"){
+		if (nextLevelCounter == 0){
+			nextLevelCounter++;
+			updateTimer();
+		}
 		finishFrame = tasInputCounter;
 		//controllerX = 0;
 		//controllerY = 0;
 		controllerPressed = true;
-
 		if (tasFiles.length > tasFileCounter+1) {
 			nextLevelCounter++;
-			if (nextLevelCounter>100){
+			if (nextLevelCounter>50){
 				controllerPressed = false;
 				nextLevelCounter = 0;
 				tasFileCounter++;
@@ -1482,8 +1508,43 @@ function getTasInputsGamePlay(){
 	controllerPressed = true;
 }
 
-let tasFileCounter = 0;
+function setupTimes(){
+	for (let file of tasFiles){
+		let nameElem = document.createElement('td');
+		nameElem.innerText = file.loadLevel;
 
+		let timeElem = document.createElement('td');
+		timeElem.id = "time-" + file.loadLevel;
+
+		let rowElem = document.createElement('tr');
+		rowElem.appendChild(nameElem);
+		rowElem.appendChild(timeElem);
+
+		document.getElementById("timer").children[0].insertBefore(rowElem, document.getElementById("totalRow"));
+	}
+}
+
+let totalTime = 0;
+let totalMinutes = 0;
+
+function updateTimer(){
+	let levelName = tasFiles[tasFileCounter].loadLevel;
+	let time = raceTimer;
+	totalTime += raceTimer;
+	if (totalTime >= 60000){
+		totalTime - 60000;
+		totalMinutes++;
+	}
+	let formattedTime = formatTime(raceTimerMinutes, raceTimer);
+	let formattedTotal = formatTime(totalMinutes, totalTime);
+
+	document.getElementById("totalTime").innerText = formattedTotal;
+
+	document.getElementById("time-" + levelName).innerText = formattedTime;
+}
+
+let tasFileCounter = 0;
+setupTimes();
 parseInputs(tasFiles[tasFileCounter]);
 
 </script>
