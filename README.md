@@ -14,6 +14,7 @@ tasFiles.push({<br>
 loadLevel : `[levelname]`,<br>
 frameAdvance : `[number] (optional)`,<br>
 skipFrames: `[number] (optional)`,<br>
+showHitbox: `true (optional)`,<br>
 inputs : \`<br>
 `[inputlines]`<br>
 `<br>
@@ -22,6 +23,7 @@ inputs : \`<br>
 levelname = the name of the level you're tasing<br>
 frameAdvance = if set the game will run in frameadvance mode, the numer you enter will specify the default amount of frames to advance.<br>
 skipFrames = the starting of frameadvance will be delayed by this amount (overwritten by breakpoints)<br>
+showHitbox = if true will show the hitboxes of signes as well as the true track limits<br>
 inputs = the actual inputs of the tas, see below
 
 # Input format
