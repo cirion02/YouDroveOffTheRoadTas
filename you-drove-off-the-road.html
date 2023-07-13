@@ -1,5 +1,6 @@
-<!doctype html>
-<meta charset='utf-8'>
+<!DOCTYPE html>
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8"><meta charset="utf-8">
 <!--
 Published on 2023-07-09 by Ian Henderson.
 This software belongs to a future without copyright.  Please use it however you'd like.
@@ -206,22 +207,29 @@ td {
 }
 
 </style>
-<main class='title-screen'>
-<canvas id='main'></canvas>
-<div id='ending-text'>
-	<p>a game by Ian Henderson (aka panic#9031) for 1d1p 47 &ldquo;sign&rdquo;</p>
-	<p>released on 9 July 2023</p>
-	<p>shoutout to the folks in witscord, in particular raz and sus for hosting 1d1p and coming up with the cool theme</p>
-	<p>congrats on finishing the game and i hope you have a good rest of your day</p>
-</div>
-<div id='level-buttons'></div>
-<button id='bottom-right-button' class='bottom-right'></button>
-<button id='bottom-left-button' class='bottom-left'>START GAME</button>
-<button id='previous-level-button'>PREVIOUS</button>
-<button id='next-level-button'>NEXT</button>
-<span id='message'>You drove off the road!</span>
-<span id='subtitle'>a puzzle racing game by panic#9031</span>
-</main>
+</head>
+<body class="vsc-initialized">
+<main class="title-screen">
+	<canvas id="main" style="width: 800px; height: 800px;" width="640" height="640"></canvas>
+	<div id="ending-text" style="transform: translate(0px);">
+		<p>a game by Ian Henderson (aka panic#9031) for 1d1p 47 “sign”</p>
+		<p>released on 9 July 2023</p>
+		<p>shoutout to the folks in witscord, in particular raz and sus for 
+	hosting 1d1p and coming up with the cool theme.  also thanks to 
+	thefifthmatt and Cirion02 for useful feedback!</p>
+		<p>congrats on finishing the game and i hope you have a good rest of your day</p>
+	</div>
+	<div id="level-buttons"></div>
+	<button id="bottom-right-button" class="bottom-right"></button>
+	<button id="bottom-left-button" class="bottom-left">START GAME</button>
+	<button id="previous-level-button">PREVIOUS</button>
+	<button id="next-level-button">NEXT</button>
+	<span id="message" style="transform: translate(0px);">You drove off the road!</span>
+	<span id="subtitle">a puzzle racing game by panic#9031</span>
+	</main>
+	<canvas id="trail" width="640" height="640"></canvas>
+	<pre id="debug"></pre>
+	
 <table id="timer">
 	<tr>
 		<td style="visibility: collapse;"></td>
@@ -248,8 +256,10 @@ const originalDevicePixelRatio = window.devicePixelRatio;
 const viewportWidth = 800;
 const viewportHeight = 800;
 
-const dataCanvasScale = 0.25;
-let trackData;
+const trackDataScale = 0.25;
+const trackDataWidth = viewportWidth * trackDataScale;
+const trackDataHeight = viewportHeight * trackDataScale;
+const trackData = new Uint8Array(trackDataWidth * trackDataHeight);
 
 const trailScale = originalDevicePixelRatio;
 
@@ -277,7 +287,7 @@ const introSlideFactorDeceleration = 0;
 
 let endingStartMS = 0;
 let endingMS = 0;
-const endingMSMax = 750;
+const endingMSMax = 780;
 
 const pointsInTrail = new Float32Array(120 * 2000);
 let numberOfPointsInTrail;
@@ -345,7 +355,7 @@ const carWidth = 12;
 const trackWidth = 72;
 const startFinishWidth = 24;
 const signWidth = 28;
-const trackAllowanceFactor = 1.15;
+const trackAllowanceFactor = 1.17;
 
 function load() {
 	points = levels[currentLevel].points;
@@ -454,6 +464,36 @@ function showTitleScreen() {
 	redraw();
 }
 
+function rasterizeTrack(begin, end) {
+	let minX = 0;
+	let maxX = trackDataWidth - 1;
+	let minY = 0;
+	let maxY = trackDataHeight - 1;
+	const beginX = points[begin] * trackDataScale;
+	const beginY = points[begin + 1] * trackDataScale;
+	const endX = points[end] * trackDataScale;
+	const endY = points[end + 1] * trackDataScale;
+	const r = trackWidth / 2 * trackAllowanceFactor * trackDataScale + 0.5;
+	minX = Math.floor(Math.max(minX, Math.min(beginX - r, endX - r)));
+	minY = Math.floor(Math.max(minY, Math.min(beginY - r, endY - r)));
+	maxX = Math.ceil(Math.min(maxX, Math.max(beginX + r, endX + r)));
+	maxY = Math.ceil(Math.min(maxY, Math.max(beginY + r, endY + r)));
+	const offsetX = endX - beginX;
+	const offsetY = endY - beginY;
+	const offsetLength2 = offsetX * offsetX + offsetY * offsetY;
+	for (let y = minY; y <= maxY; y++) {
+		for (let x = minX; x <= maxX; x++) {
+			const dx = x - beginX;
+			const dy = y - beginY;
+			const t = Math.max(0, Math.min(1, (offsetX * dx + offsetY * dy) / offsetLength2));
+			const projX = beginX + t * offsetX - x;
+			const projY = beginY + t * offsetY - y;
+			if (projX * projX + projY * projY <= r * r)
+				trackData[y * trackDataWidth + x] = 255;
+		}
+	}
+}
+
 function setLevel(levelIndex) {
 	const level = levels[levelIndex];
 	currentLevel = levelIndex;
@@ -463,30 +503,13 @@ function setLevel(levelIndex) {
 	document.getElementById('bottom-right-button').textContent = 'START';
 	document.getElementById('subtitle').textContent = level.tutorial ? level.tutorial : '';
 	document.querySelector('main').className = 'loaded';
-	const trackContext = track.getContext('2d');
-	trackContext.save();
-	trackContext.clearRect(0, 0, track.width, track.height);
-	trackContext.scale(dataCanvasScale, dataCanvasScale);
-	trackContext.beginPath();
-	trackContext.lineCap = 'round';
-	trackContext.lineJoin = 'round';
-	trackContext.strokeStyle = '#fff';
-	trackContext.lineWidth = trackWidth * trackAllowanceFactor;
+
+	trackData.fill(0);
+
 	for (const chain of chains) {
-		let moved = false;
-		for (const index of chain) {
-			const x = points[index];
-			const y = points[index + 1];
-			if (!moved) {
-				trackContext.moveTo(x, y);
-				moved = true;
-			} else
-				trackContext.lineTo(x, y);
-		}
+		for (let i = 1; i < chain.length; ++i)
+			rasterizeTrack(chain[i - 1], chain[i]);
 	}
-	trackContext.stroke();
-	trackData = trackContext.getImageData(0, 0, track.width, track.height);
-	trackContext.restore();
 	redraw();
 }
 
@@ -590,19 +613,21 @@ function updateProgress() {
 		if (d2 > trackWidth * trackWidth * progressOffRoadFactor * progressOffRoadFactor) {
 			// drove off the road!
 			activeIndexInChain[i] = -3;
-		} else if (d2 > trackWidth * trackWidth * 0.25) {
+		} else if (d2 > trackWidth * trackWidth * 0.25 * trackAllowanceFactor * trackAllowanceFactor) {
 			const probes = 20;
+			const probesOffset = 5;
 			// check whether there are any gaps between the car and the presumed chain location
-			for (let j = 0; j < probes; ++j) {
-				const pixelX = Math.round((carX + j * (chainX - carOffsetX) / probes) * dataCanvasScale);
-				const pixelY = Math.round((carY + j * (chainY - carOffsetY) / probes) * dataCanvasScale);
-				if (pixelX < 0 || pixelY < 0 || pixelX >= trackData.width || pixelY >= trackData.height || trackData.data[4 * (pixelY * trackData.width + pixelX)] < 255)
+			for (let j = probesOffset; j < probes; ++j) {
+				const pixelX = Math.round((carX + j * (chainX - carOffsetX) / probes) * trackDataScale);
+				const pixelY = Math.round((carY + j * (chainY - carOffsetY) / probes) * trackDataScale);
+				if (pixelX < 0 || pixelY < 0 || pixelX >= trackDataWidth || pixelY >= trackDataHeight || trackData[pixelY * trackDataWidth + pixelX] < 255)
 					activeIndexInChain[i] = -3;
 			}
 		}
 		debugString = `${debugString} ${i} ${activeIndex} ${Math.round(progress * 100)} /`;
 	}
 	// document.getElementById('debug').textContent = debugString;
+	const progressThreshold = levels[currentLevel].progressThreshold ? levels[currentLevel].progressThreshold : 0.5;
 	let anyActive = false;
 	for (let i in chains) {
 		const chain = chains[i];
@@ -611,7 +636,6 @@ function updateProgress() {
 		if (activeIndex < 0)
 			continue;
 		anyActive = true;
-		const progressThreshold = 0.5;
 		if (progress <= progressThreshold)
 			continue;
 		canFinishRace = true;
@@ -1041,6 +1065,17 @@ function redraw() {
 	for (const object of objects)
 		drawObject(ctx, object);
 
+	if (showHitbox) {
+		ctx.fillStyle = '#0004';
+		for (let y = 0; y < trackDataHeight; ++y) {
+			for (let x = 0; x < trackDataWidth; ++x) {
+				if (trackData[y * trackDataWidth + x])
+					ctx.fillRect(x / trackDataScale - 0.5 / trackDataScale, y / trackDataScale - 0.5 / trackDataScale, 1 / trackDataScale, 1 / trackDataScale);
+			}
+		}
+	}
+
+
 	if (gameState !== 'loaded' && gameState !== 'level-select' && !levels[currentLevel].ending) {
 		ctx.fillStyle = '#433';
 		if (gameState === 'game-over' && gameOverMessageClassName !== 'finish')
@@ -1193,9 +1228,9 @@ function tick(dt) {
 					checkSolved();
 				}
 			}
-			const pixelX = Math.round(carX * dataCanvasScale);
-			const pixelY = Math.round(carY * dataCanvasScale);
-			if (pixelX < 0 || pixelY < 0 || pixelX >= trackData.width || pixelY >= trackData.height || trackData.data[4 * (pixelY * trackData.width + pixelX)] < 255) {
+			const pixelX = Math.round(carX * trackDataScale);
+			const pixelY = Math.round(carY * trackDataScale);
+			if (pixelX < 0 || pixelY < 0 || pixelX >= trackDataWidth || pixelY >= trackDataHeight || trackData[pixelY * trackDataWidth + pixelX] < 255) {
 				if (gameState !== 'game-over') {
 					gameOver('You drove off the road!', levels[currentLevel].ending ? 'ending' : 'error');
 					if (levels[currentLevel].ending)
@@ -1275,8 +1310,6 @@ canvas.style.width = viewportWidth + 'px';
 canvas.style.height = viewportHeight + 'px';
 trail.width = viewportWidth * trailScale;
 trail.height = viewportHeight * trailScale;
-track.width = viewportWidth * dataCanvasScale;
-track.height = viewportHeight * dataCanvasScale;
 
 redraw();
 
@@ -1297,6 +1330,14 @@ function animationFrame(timestamp) {
 window.requestAnimationFrame(animationFrame);
 
 /*
+canvas.addEventListener('pointerdown', function (event) {
+	controllerPressed = true;
+	const rect = canvas.getBoundingClientRect();
+	controllerX = event.clientX - rect.left;
+	controllerY = event.clientY - rect.top;
+	canvas.setPointerCapture(event.pointerId);
+});
+
 canvas.addEventListener('pointermove', function (event) {
 	const rect = canvas.getBoundingClientRect();
 	controllerX = event.clientX - rect.left;
